@@ -1,0 +1,7 @@
+.Rproj.user/
+.Rdata
+.Rhistory
+*.Rproj
+*.png
+*.jpg
+*.rds

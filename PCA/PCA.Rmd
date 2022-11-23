@@ -1,0 +1,15 @@
+---
+title: "Principal Component Analisis"
+author: "Sergio Martí"
+date: "22/11/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Análisis de Componentes Principales
+
+
+
