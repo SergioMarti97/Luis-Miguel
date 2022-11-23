@@ -1,0 +1,213 @@
+---
+title: "tximport"
+author: "Sergio Martí"
+date: "12/11/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# tximport para importar datos de SALMON
+
+*tximport* es paquete de bioconductor que se utiliza para importar y hacer un *summary* de las estimaciones de abundancia de transcritos. Posteriormente, se pueden realizar análisis de los transriptos o de los genes con otros paquetes de bionconductor, como: edgeR, DESeq2 o limma-voom. Exite otro paquete más reciente llamado *tximeta* que ofrece las misma funcionalidad de *tximport*. Pero, también añade automáticamente los métadatos de anotación del transcriptoma.
+
+En resumen, tximport se utiliza después de la cuantificación de transcritos con SALMON (o cualquier otro software de cuantificación, como Kallisto). Utilizaremos sus funciones para fusionar en un mismo dataframe los datos de la abundancia de los transcritos de todas las muestras. Para ello, necesita que se le índiquen:
+
+-   Los archivos resultantes de la cuantificación. SALMON los guarda como "quant.sf", y en la pipeline utilizada se ha compremido con gzip. tximport no tiene ningún problema para leer archivos ".gz", incluso, se puede personalizar las librerías que leen los archivos resultantes de la cuantificación.
+
+-   Los nombres de las muestras. En este caso, son los identificadores de los pacientes.
+
+-   Para agregar los datos de los transcritos en genes, es necesario una tabla de traducción transcrito - gen.
+
+Se ha utilizado este tutoríal como referencia: [tutorial tximport](https://bioconductor.org/packages/release/bioc/vignettes/tximport/inst/doc/tximport.html)
+
+Primero, instalamos el paquete "tximport". Para instalar cualquier paquete de bioconductor, se utiliza "BiocManager", un manejador de dependencias de bioconductor.
+
+```{r instalar tximport}
+# ----------------------------------------- #
+# --- INSTALAR PAQUETES DE BIOCONDUCTOR --- #
+# ----------------------------------------- #
+
+# SERÁN NECESARIOS
+# - tximport
+# - ensembldb
+# - AnnotationHub
+
+# NOTA: diferencias entre "library()" y "require()"
+# Las dos funciones hacen lo mismo: cargar en memoría el contenido de un 
+# paquete, pero require() esta pensado para ser utilizado dentro de estructuras
+# de control como if-else. De esta forma, se pueden generar chunks de código
+# que instalan paquetes si el programa detecta que no están instalados.
+
+# Instalar BiocManager. Solo lo instala si no esta instalado
+if (!require("BiocManager", quietly = TRUE)) {
+  install.packages("BiocManager")
+}
+
+# Instalar tximport. Solo lo instala si no esta instalado
+if (!require("tximport", quietly = TRUE)) {
+  BiocManager::install("tximport")
+}
+
+# Instalar "ensembldb". Solo lo instala si no esta instalado
+if (!require("ensembldb", quietly = TRUE)) {
+  BiocManager::install("ensembldb")
+}
+
+# Instalar "EnsDb.Hsapiens.v86". Solo lo instala si no esta instalado
+if (!require("EnsDb.Hsapiens.v86", quietly = TRUE)) {
+  BiocManager::install("EnsDb.Hsapiens.v86")
+}
+
+# Instalar AnnotationHub. Solo lo instala si no esta instalado
+if (!require(AnnotationHub, quietly = TRUE)) {
+  BiocManager::install("AnnotationHub")
+}
+
+```
+
+## Los archivos de cuantificación a importar
+
+Para indicar a tximport los archivos con los datos de la cuantificación, se ha ejecutado el siguiente chunk de código. En esta parte, se listan los directorios que se encuentran en la carpeta "quants2", generada tras la ejecución del script de SALMON, y se genera una lista con los nombres de las muestras y la ubicación del archivo "quant.sf.gz".
+
+```{r}
+# ------------------------------- #
+# --- LISTA MUESTRA - ARCHIVO --- #
+# ------------------------------- #
+
+# Defino algunas variables...
+# nombre del archivo con los datos de la cuantificación
+sNameQuantFile <- "quant.sf.gz"
+# ubicación de la carpeta con el resultado de SALMON
+sPath <- "D:/Sergio/quants2"
+
+# Generar la lista
+
+# list.dirs => lista los subdirectorios de un directorio
+lFiles <- list.dirs(sPath, full.names = TRUE, recursive = FALSE)
+
+# basename => elimina el path y deja solamente el nombre de los archivos
+lSampleNames <- basename(lFiles)
+
+# file.path => añade al final de un path, el nombre de un archivo
+lFiles <- file.path(lFiles, sNameQuantFile)
+
+# names => lista los nombres de una lista, tupla, data.frame... 
+# Si le asignamos algo, cambia los nombres
+names(lFiles) <- lSampleNames 
+
+# Mostramos la lista generada
+
+head(lFiles)
+```
+
+## Tabla transcrito - gen
+
+Cargar la base de datos con el transcriptoma del humano. Hay varias formas de realizar este paso, pero la mayoría probocan un error: hay transcritos que faltan en la tabla transcrito - gen (tx2gene). Este error ha surgido utilizando las librerías de Ensmbld y annotation hub. Se ha consultado la página de ayuda de bioconductor y se ha visto que da el mismo error con otra librería llamada GTF. La única forma mediante la cual se han importado los datos de los transcritos con tximport ha sido generando la tabla tx2gene a partir del mismo genoma de referencia que se utilizó con SALMON.
+
+Mediante ensmbld.
+
+```{r}
+# ----------------- #
+# --- ENSEMBLDB --- #
+# ----------------- #
+
+library(EnsDb.Hsapiens.v86)
+
+# EnsDb.Hsapiens.v86 es la base de datos de H. sapiens. 
+txdb <- EnsDb.Hsapiens.v86
+
+# Obtenemos los índices correspondientes al nombre del transcrito
+k <- keys(txdb, keytype = "TXNAME")
+
+# Seleccionamos las columnas "TXNAME" (nombre del transcrito) y "GENEID" (ID 
+# del gen) generando la tabla tx2gene
+tx2gene <- select(txdb, k, "GENEID", "TXNAME")
+```
+
+Mediante AnnotationHub. Este método esta muy bien porque permite lanzar consultas sobre la base de datos de genomas, lo cual permite ver que genomas tiene registrados y las versiones de estos.
+
+```{r}
+# ---------------------- #
+# --- ANNOTATION HUB --- #
+# ---------------------- #
+
+library(AnnotationHub)
+
+# Instanciar la clase "AnnotationHub"
+ah <- AnnotationHub()
+
+# Lanzar una consulta de los genomas existentes de EnsDb.Hspaiens
+query(ah, "EnsDb.Hsapiens")
+
+# Cargamos con AnnotationHub la base de datos del humano que se quiera...
+ensembldb_HSapiens <- ah[["AH53211"]]
+
+# De esta base de datos, obtenemos el transcriptoma
+txs <- transcripts(ensembldb_HSapiens, return.type = "DataFrame")
+
+# Generamos la tabla que asocia el id del transcrito con el id del gen
+tx2gene <- data.frame(tx_id = txs$tx_id, gene_id = txs$gene_id)
+
+tx2gene$tx_id <- paste0(tx2gene$tx_id, ".1")
+```
+
+Mediante GTF.
+
+```{r}
+# ----------- #
+# --- GTF --- #
+# ----------- #
+
+# @see: "https://support.bioconductor.org/p/123134/"
+
+Txdb <- makeTxDbFromGFF(file="../Homo_sapiens.GRCh38.96.gtf",
+                        dataSource="ftp://ftp.ensembl.org/pub/release-96/gtf/homo_sapiens/Homo_sapiens.GRCh38.96.gtf.gz",
+                        organism="Homo sapiens")
+k <- keys(Txdb, keytype = "TXNAME")
+tx2gene <- select(Txdb, k, "GENEID", "TXNAME")
+head(tx2gene)
+```
+
+Mediante un script de bash que genera la tabla tx2gene a partir del genoma que se utilizo con SALMON. Como la tabla tx2gene ya esta generada, solo hay que leer los datos. Es el único método que acabo funcionando.
+
+```{r}
+# ---------------------- #
+# --- SCRIPT DE BASH --- #
+# ---------------------- #
+
+# Para no poner toda la ruta
+setwd("D:/Sergio/Luis Miguel/")
+
+# Read tabular data into R
+tx2gene <- read.csv("tx2gene.txt", header = FALSE, sep = "")
+```
+
+## Importar los datos de la cuantificación
+
+Una vez que se han generado la lista de archivos que se quieren importar y la tabla de traducción "transcrito - gen" (tx2gene), se pueden llamar a la función de tximport para importar los datos.
+
+```{r}
+# ---------------- #
+# --- IMPORTAR --- #
+# ---------------- #
+
+library(tximport)
+
+# la función tximport es la encargada de hacer todo el trabajo
+txi <- tximport(lFiles, type = "salmon", tx2gene = tx2gene)
+
+# el objeto generado contiene 4 matrices de datos: abundace, counts, length y countsFromAbundance
+names(txi)
+```
+
+## Borrar los objetos
+
+Una vez se han importado los datos de la cuantificación, ya no son necesarios los objetos utilizados para realizar este paso.
+
+```{r}
+rm(ah, ensembldb_HSapiens, txs, tx2gene, lFiles, lSampleNames, sNameQuantFile, sPath)
+```
+
