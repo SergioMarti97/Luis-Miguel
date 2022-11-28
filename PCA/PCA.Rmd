@@ -211,8 +211,11 @@ pcaData2 <- data.frame(
   intgroup.df, 
   name = colData(dds)[,1])
 
+# Mostramos el % de la varianza original retenida (con la varianza se estima la información)
+round(sum(percentVar[1:4]) * 100, 2)
+
 # Eliminar variables
-rm(ntop, intgroup, rv, select, pca, d, intgroup.df)
+rm(ntop, intgroup, rv, select, pca,  intgroup.df)
 
 # Mostramos el dataframe generando con las componentes principales 1 - 4
 head(pcaData2)

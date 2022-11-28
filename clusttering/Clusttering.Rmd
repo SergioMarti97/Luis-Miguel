@@ -1,0 +1,151 @@
+---
+title: "Análisis de Conglomerados"
+author: "Sergio Martí"
+date: '2022-11-28'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Análisi de Conglomerados
+
+Después de realizar una extracción o selección de variables, se puede realizar un análisis de conglomerados. O en otras palabras, agrupar los individuos por su parecido, intentando formar grupos homogeneos.
+
+## Importar las librerias necesarias
+
+Son necesarias las librerías: tidyverse, ggdendro
+
+```{r}
+# Instalar, si no lo está, tidyverse
+if (!require(tidyverse, quietly = TRUE)) {
+  install.packages(tidyverse)
+}
+
+# Instalar, si no lo está, ggdendro
+if (!require("ggdendro", quietly = TRUE)) {
+  install.packages("ggdendro")
+}
+
+# Instalar, si no está instalado, weitexl: paquete para guardar como excel dataframes
+if (!require("writexl", quietly = TRUE)) {
+  install.packages("writexl")
+}
+```
+
+## Leer los datos
+
+Cargamos los datos resultantes del PCA.
+
+```{r}
+# Leer el objeto rds con los datos del pca que tiene las CPs 1 - 4
+pcaData <- readRDS("../PCA/pcaData2.rds")
+```
+
+## Matriz de distancias/similitud
+
+La matriz de distancias resume la similitud de los individuos entre si. Se puede calcular de distintas formas, mediante la distancia euclidea, manhattan, coeficiente de correlación de pearson... etc.
+Se han calculado la matriz mediante la función de distancia euclidea (el método más común en estos casos). Se han utilizado las 4 primeras componentes principales (retienen el 57% de la información original).
+
+```{r}
+# Matriz de distancias
+mDist <- as.matrix(dist(pcaData[,c(1,2,3,4)], method = "euclidean"))
+```
+
+Representación gráfica de la matriz de distancias.
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+
+# La ubicación donde guardar el gráfico
+dir.create(file.path(getwd(), "img"), showWarnings = FALSE)
+
+# Reordeno la matriz para generar un df
+dfDist <- mDist %>% 
+  as.data.frame() %>%
+  rownames_to_column("f_id") %>%
+  pivot_longer(-c(f_id), names_to = "samples", values_to = "counts")
+
+# Gráfica con ggplot2
+gDist <- ggplot(dfDist, aes(x = samples, y = f_id, fill = counts)) + 
+  geom_tile(); gDist
+```
+
+## Herarquical clusttering
+
+Con la matriz de distancias se puede realizar un análisis de conglomerados jerárquico.
+
+```{r}
+# Clusttering herarquico
+# NOTA: por algún motivo la función hclust da error cuando se le pasa el objeto mDist
+hc <- hclust(dist(pcaData[,c(1,2)], method = "euclidean"), method = "complete"); hc
+
+# Existe una función llamada cutree que permite cortar según el número de grupos que se quieren separar
+cluster <- cutree(hc, 5)
+
+pcaData$Cluster <- as.factor(cluster)
+```
+
+El gráfico utilizado para representar el clusttering jerárquico es un dendograma.
+
+```{r}
+library(ggplot2)
+library(ggrepel)
+
+# Dendograma
+hcplot <- ggdendro::ggdendrogram(hc, rotate = TRUE) + 
+  ggtitle("Clustering"); hcplot
+
+# Guardamos el dendograma
+ggsave("./img/hcplot_01.png", plot = hcplot)
+
+# Dispersión según clusttering
+gClust <- ggplot(pcaData, aes(PC1, PC2, color = Cluster, label = row.names(pcaData))) +
+  geom_point(size=3) +
+  geom_label_repel(size = 3) + 
+  xlab("PC1") +
+  ylab("PC2") + 
+  ggtitle("Grupos clusttering") +
+  coord_fixed(); gClust
+
+# Guardamos el gráfico de dispersión, con los grupos del clusttering
+ggsave("./img/PCA_clust.png", plot = gClust)
+```
+
+## Heatmap
+
+Un mapa de calor es la representación gráfica de la matriz de distancias y el clusttering jerárquico.
+
+```{r}
+# @see: https://stackoverflow.com/questions/3081066/what-techniques-exists-in-r-to-visualize-a-distance-matrix
+
+heatmap(mDist, cexRow = 0.6, cexCol = 0.6)
+
+# ---
+
+png('./img/heatmap.png')
+
+svg('./img/heatmap.svg')
+
+heatmap(mDist, cexRow = 0.6, cexCol = 0.6)
+
+dev.off()
+```
+
+## Guardar el clusttering
+
+Se puede guardar como un RDS y como un excel.
+
+```{r}
+# --- Guardar como Excel --- #
+library("writexl")
+
+# Guardamos las componentes principales 1
+write_xlsx(pcaData, "./pcaDataClust.xlsx")
+
+# --- Guardar como RDS --- #
+saveRDS(pcaData, "./pcaDataClust.rds")
+```
+
