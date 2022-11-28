@@ -9,7 +9,362 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Análisis de Componentes Principales
+# Análisis de Componentes Principales con DESeq2
+
+Instalar y cargar la librería DESeq2. Esta librería contiene una serie de funcionalidades para realizar análisis estadísticos, "aguas abajo" (down-stream) de datos ómicos analizados con SALMON e importados con tximport.
+
+## Importar las librerias necesarias
+
+Son necesarias las librerías de "DESeq2", "readxl", "ggplot2", "ggrepel" y "plotly".
+
+```{r}
+# Instalar, si no está instalado, BiocManager: cargador de dependencias de bioconductor
+if (!require("BiocManager", quietly = TRUE)) {
+  install.packages("BiocManager")
+}
+
+# Instalar, si no está instalado, DESeq2: herramienta para el análisis transcriptómico aguas abajo
+if (!require("DESeq2", quietly = TRUE)) {
+  BiocManager::install("DESeq2")
+}
+
+# Instalar, si no está instalado, weitexl: paquete para guardar como excel dataframes
+if (!require("writexl", quietly = TRUE)) {
+  install.packages("writexl")
+}
+
+# NOTA: si dice de actualizar paquetes, contestar que NO (n).
+
+# Instalar, si no está instalado
+# - readxl: sirve para leer excele
+# - ggplot2: sirve para generar gráficos estáticos, muy usado en publicaciones
+# - ggrepel: sirve para añadir funciones a ggplot2 que evitan que los textos dentro de un gráfico se superpongan
+# - plotly: sirve para generar gráficos dinámicos, permite interactuar al usuario con la gráfica
+# Normalmente, vienen instalado en muchas distribuciones de R, solo hace falta cargarlos con "library()"
+```
+
+## Leer los datos
+
+Cargamos los datos clínicos de los pacientes y los datos del transcriptoma.
+
+```{r}
+# --- Datos de expresion genética ---
+
+# El objeto que contiene toda la información esta guardado como .RDS
+txi <- readRDS("../import quant/txi.RDS")
+# Trabajaremos con los counts
+countData <- txi$counts
+
+# No vamos a trabajar más con txi, así que como ocupa 35MB, lo elimino de la memoria
+rm(txi)
+
+# La matriz tiene, en los nombres de las muetras, un sufijo después de una barra baja, que es el "sample ID" que se utilizó para secuenciarlo en illumina. Para que no de problemas, se van a renombrar
+
+# Elimino el sufijo "_Sxx" de los nombres de las columnas
+lNewColnames <- unlist(strsplit(colnames(countData), "_"))[seq(1, 2 * ncol(countData), 2)]
+
+# Asigno los nuevos nombres de las columnas a la matriz
+colnames(countData) <- lNewColnames
+
+# Muestro los primeros datos
+head(countData)
+
+rm(lNewColnames)
+
+# --- Datos clínicos ---
+
+# Cargar la librería necesaria para leer archivos excel
+library("readxl")
+
+# Leer los datos del excel
+clinicalData <- read_excel("../datos_clinicos/dfClinical.xlsx")
+
+# Muestro los primeros datos
+head(clinicalData)
+```
+
+Para evitar errores a la hora de fusionar los datos de la cuantificación y los datos de los pacientes, se va a reordenar el dataframe de los datos clínicos de los pacientes de forma que tengan el mismo orden que las columnas de la matriz con los *counts* para cada gen.
+
+```{r}
+# Los datos de la matriz estan ordenados como si los números fuesen carácteres, por lo que voy a transformar la variable "Sample" del dataframe de los datos clínicos a carácter, y después lo ordenaré de menor a mayor
+clinicalData$Samples <- as.character(clinicalData$Samples)
+clinicalData <- clinicalData[order(clinicalData$Samples),]
+```
+
+Elimino los datos del paciente 88, ya que por un error en el laboratorio, se secuenció con más profundidad de lectura y sus datos de supervivencia son outliers.
+
+```{r}
+# Elimino la columna del paciente 88 de la matriz "countData" 
+countData <- countData[,colnames(countData) != "88"]
+
+# Elimino la fila del paciente 88 en los datos clinicos
+clinicalData <- clinicalData[clinicalData$Samples != "88",]
+
+# Nos aseguramos de que hay el número correcto de muestras
+ncol(countData)
+nrow(clinicalData)
+
+# Mostramos
+head(countData)
+head(clinicalData)
+```
+
+## Aplicar la transformación de DESeq2
+
+La librería DESeq2, permite fusionar los datos de los transcritos y los datos clínicos de los pacientes. De forma que por un lado tenemos la matriz con los datos de expresion génica (counts de los transcritos) y por otro lado tenemos los datos clínicos de los pacientes que son tratados como fáctores.
+
+@see: "https://compbiocore.github.io/deseq-workshop-1/assets/deseq_workshop_1.html"
+
+```{r}
+# Cargar la librería
+library("DESeq2")
+
+# Aplicar la transformación que une counts + metadados
+dds <- DESeqDataSetFromMatrix(countData = round(countData), colData = clinicalData, design = ~Grade)
+
+# Mostramos la información del objeto (es un objeto especial de DESeq2)
+dds
+```
+
+## PCA con DESeq2
+
+Ahora vamos a aplicar un Analisis de Componentes Principales (PCA) con las funciones del paquete DESeq2.
+
+```{r}
+# Normalizamos los datos
+# vst = Variance Stabilizing Transformation
+vsdata <- vst(dds, blind = FALSE)
+
+# Realizamos la extracción de componentes principales
+pcaData <- plotPCA(vsdata, intgroup="Grade", returnData = TRUE)
+
+# plotPCA, por defecto, genera un dataframe con una variable llamada "group" que contiene la misma información que la variable que se ha indicado en la función. Se pude eliminar.
+pcaData$group <- NULL
+```
+
+El objeto "pcaData" contiene los valores de las 2 primeras Componentes Principales (PCs) para los 28 pacientes.
+
+Se ha creado una función, partiendo de la original, que calcula las 4 primeras componentes principales.
+
+```{r}
+# Mostramos los datos
+head(pcaData)
+```
+
+## Grafico de dispersión
+
+```{r}
+# La ubicación donde guardar el gráfico
+dir.create(file.path(getwd(), "img"), showWarnings = FALSE)
+
+# Cargamos la librería ggplot2
+library(ggplot2)
+library(ggrepel)
+
+# Extraemos el atributo del porcentaje de la varianza
+# (sirve para añadir el % de la varianza en los ejes del gráfico)
+percentVar <- round(100 * attr(pcaData, "percentVar"))
+
+# Hacemos el gráfico
+g <- ggplot(pcaData, aes(PC1, PC2, color=Grade, label = row.names(pcaData))) +
+  geom_point(size=3) +
+  geom_label_repel(size = 3) + 
+  xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+  ylab(paste0("PC2: ",percentVar[2],"% variance")) + 
+  ggtitle("Patients by glioblastoma grade") + 
+  coord_fixed();g
+
+# Guardamos el gráfico
+ggsave("./img/PCA_01_fGrade.png", plot = g)
+
+rm(percentVar, g)
+```
+## PCA CP3 y 4
+
+La función "plotPCA" del paquete DESeq2 sola genera las Componentes Principales (CP) 1 y 2. Como Luis Miguel represento los datos de los pacientes con 3 CP, es necesario calcular las otras componentes principales.
+
+```{r}
+# ----------- #
+# --- PCA --- #
+# ----------- #
+
+# --- Variables --- #
+# Número de genes
+ntop = 500 
+# El fáctor
+intgroup = "Grade"
+
+# --- Extracción de PCs --- #
+rv <- rowVars(assay(vsdata))
+select <- order(rv, decreasing = TRUE)[seq_len(min(ntop, length(rv)))]
+pca <- prcomp(t(assay(vsdata)[select, ]))
+percentVar <- pca$sdev^2/sum(pca$sdev^2)
+
+intgroup.df <- as.data.frame(colData(vsdata)[, intgroup, drop = FALSE])
+
+# --- Dataframe con las PCs --- #
+pcaData2 <- data.frame(
+  PC1 = pca$x[, 1], 
+  PC2 = pca$x[, 2], 
+  PC3 = pca$x[, 3],
+  PC4 = pca$x[, 4], 
+  intgroup.df, 
+  name = colData(dds)[,1])
+
+# Eliminar variables
+rm(ntop, intgroup, rv, select, pca, d, intgroup.df)
+
+# Mostramos el dataframe generando con las componentes principales 1 - 4
+head(pcaData2)
+```
+
+## Gráfico de dipersión en 3D
+
+Se utilizará un paquete distinto a ggplot2 para realizar gráficas: plotly. Plotyl es un paquete utilizado para generar gráficos dinámicos, los cuales permiten al usuario interactuar con ellos. Para la visualización de estos datos, es una mejor opción que ggplot2.
+
+```{r}
+# Representación de los individuos con las 3 primeras componentes principales.
+# Cargamos la librería plotly
+library(plotly)
+
+# Generamos la figura
+fig <- plot_ly(
+  pcaData2,
+  x = ~PC1,
+  y = ~PC2,
+  z = ~PC3
+) %>% add_markers(color = ~Grade); fig
+
+# Generamos la figura, con la opción de que cada punto tenga indicado el nombre de la muestra.
+fig_named <- fig %>% add_trace(text = row.names(pcaData2), hoverinfo = 'text', marker = list(color='green')); fig_named
+
+rm(fig, fig_named)
+```
+
+## Añadir los factores de estudio al dataframe con las Componentes Principales
+
+Al dataframe que se ha generado con la función del paquete DESeq2, se le van a añadir los factores que se encuentran en el dataframe de los datos clínicos de los pacientes.
+
+```{r}
+# --- PCA Data 1 --- #
+# Factor edad
+pcaData$fAge <- clinicalData$fAge
+# Factor género
+pcaData$fGender <- clinicalData$fGender
+# Factor hemisferio donde aparecio el tumor
+pcaData$fTumorHemisphere <- clinicalData$fTumorHemisphere
+# Factor lóbulo donde aparecio el tumor
+pcaData$fTumorLobule <- clinicalData$fTumorLobule
+# Factor supervivencia
+pcaData$fSurvival <- clinicalData$fSurvival
+
+# --- PCA Data 2 --- #
+# Factor edad
+pcaData2$fAge <- clinicalData$fAge
+# Factor género
+pcaData2$fGender <- clinicalData$fGender
+# Factor hemisferio donde aparecio el tumor
+pcaData2$fTumorHemisphere <- clinicalData$fTumorHemisphere
+# Factor lóbulo donde aparecio el tumor
+pcaData2$fTumorLobule <- clinicalData$fTumorLobule
+# Factor supervivencia
+pcaData2$fSurvival <- clinicalData$fSurvival
+```
+
+## Gráficos de dispersion según factores
+
+Utilizando los factores de los datos clínicos de los pacientes, podemos comprobar si alguno de ellos muestra un patrón.
+
+```{r}
+# Extraemos el atributo del porcentaje de la varianza
+# (sirve para añadir el % de la varianza en los ejes del gráfico)
+percentVar <- round(100 * attr(pcaData, "percentVar"))
+
+# Xlab y Ylab
+sXlab <- paste0("PC1: ", percentVar[1], "% variace")
+sYlab <- paste0("PC2: ", percentVar[2], "% variace")
+
+# Factor edad
+g1 <- ggplot(pcaData, aes(PC1, PC2, color=fAge, label = row.names(pcaData))) +
+  geom_point(size=3) +
+  geom_label_repel(size = 3) + 
+  xlab(sXlab) +
+  ylab(sYlab) + 
+  ggtitle("Patients by age quartils") +
+  coord_fixed()
+
+# Factor hemisferio cerebral
+g2 <- ggplot(pcaData, aes(PC1, PC2, color=fTumorHemisphere, label = row.names(pcaData))) +
+  geom_point(size=3) +
+  geom_label_repel(size = 3) + 
+  xlab(sXlab) +
+  ylab(sYlab) +
+  ggtitle("Patients by tumor hemisphere") +
+  coord_fixed()
+
+# Factor lobulo cerebral
+g3 <- ggplot(pcaData, aes(PC1, PC2, color=fTumorLobule, label = row.names(pcaData))) +
+  geom_point(size=3) +
+  geom_label_repel(size = 3) + 
+  xlab(sXlab) +
+  ylab(sYlab) + 
+  ggtitle("Patients by tumor lobule") +
+  coord_fixed()
+
+# Factor lobulo + hemisferio cerebral
+g4 <- ggplot(pcaData, aes(PC1, PC2, color=fTumorLobule, shape = fTumorHemisphere, label = row.names(pcaData))) +
+  geom_point(size=3) +
+  geom_label_repel(size = 3) + 
+  xlab(sXlab) +
+  ylab(sYlab) + 
+  ggtitle("Patients by tumor location") +
+  coord_fixed()
+
+# Factor superviviencia
+g5 <- ggplot(pcaData, aes(PC1, PC2, color=as.factor(fSurvival), label = row.names(pcaData))) +
+  geom_point(size=3) +
+  geom_label_repel(size = 3) + 
+  xlab(sXlab) +
+  ylab(sYlab) + 
+  ggtitle("Patients by survival") +
+  coord_fixed()
+
+# Mostramos todos los gráficos
+g1;g2;g3;g4;g5
+
+# Guardamos los gráficos
+ggsave("./img/PCA_02_fAge.png", plot = g1)
+ggsave("./img/PCA_03_fHemisphere.png", plot = g2)
+ggsave("./img/PCA_04_fLobule.png", plot = g3)
+ggsave("./img/PCA_05_fHemisphere_fLobule.png", plot = g4)
+ggsave("./img/PCA_06_fSurvival.png", plot = g5)
+
+rm(percentVar, sXlab, sYlab, g1, g2, g3, g4, g5)
+```
 
 
+## Guardar las Componentes Principales
+
+Guardar como los dataframe con las componentes principales como exceles. También, se guarda como un archivo ".RDS".
+
+```{r}
+# --- Guardar como Excel --- #
+library("writexl")
+
+# Guardamos las componentes principales 1
+write_xlsx(pcaData, "./pcaData.xlsx")
+
+# Guardamos las componentes principales 2
+write_xlsx(pcaData2, "./pcaData2.xlsx")
+
+# --- Guardar como RDS --- #
+saveRDS(pcaData, "./pcaData.rds")
+saveRDS(pcaData2, "./pcaData2.rds")
+```
+
+Borramos todas las variables
+
+```{r}
+rm(pcaData, pcaData2, dds, countData, vsdata, clinicalData)
+```
 

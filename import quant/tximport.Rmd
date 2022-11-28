@@ -99,7 +99,6 @@ lFiles <- file.path(lFiles, sNameQuantFile)
 names(lFiles) <- lSampleNames 
 
 # Mostramos la lista generada
-
 head(lFiles)
 ```
 
@@ -178,9 +177,6 @@ Mediante un script de bash que genera la tabla tx2gene a partir del genoma que s
 # --- SCRIPT DE BASH --- #
 # ---------------------- #
 
-# Para no poner toda la ruta
-setwd("D:/Sergio/Luis Miguel/")
-
 # Read tabular data into R
 tx2gene <- read.csv("tx2gene.txt", header = FALSE, sep = "")
 ```
@@ -201,6 +197,14 @@ txi <- tximport(lFiles, type = "salmon", tx2gene = tx2gene)
 
 # el objeto generado contiene 4 matrices de datos: abundace, counts, length y countsFromAbundance
 names(txi)
+```
+## Guardar los datos de la cuantificación como un objeto serializado
+
+R permite guardar un objeto como un archivo "RDS", un objeto serializado. Permite transferir objetos entre sesión y sesión de R, o guardar el progreso de los objetos que contienen la información durante el análisis.
+
+```{r}
+# Guardar como un archivo RDS
+saveRDS(txi, file = "txi.RDS")
 ```
 
 ## Borrar los objetos
