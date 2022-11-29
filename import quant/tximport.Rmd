@@ -81,7 +81,9 @@ Para indicar a tximport los archivos con los datos de la cuantificación, se ha 
 # nombre del archivo con los datos de la cuantificación
 sNameQuantFile <- "quant.sf.gz"
 # ubicación de la carpeta con el resultado de SALMON
-sPath <- "D:/Sergio/quants2"
+sPath <- "C:/Sergio/Curso 2022-23/Proyecto FISABIO/Luis Miguel/quants2"
+# PC ALCOY: "D:/Sergio/quants2"
+# PORTATIL: "C:/Sergio/Curso 2022-23/Proyecto FISABIO/Luis Miguel/quants2"
 
 # Generar la lista
 
