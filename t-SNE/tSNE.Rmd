@@ -17,7 +17,6 @@ BiocManager::install("M3C")
 
 library(M3C)
 
-
 tsne(dds)
 ```
 

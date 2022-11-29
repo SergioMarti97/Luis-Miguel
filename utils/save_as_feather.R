@@ -33,21 +33,26 @@
 # directorio de trabajo actual. Se puede comprobar el directorio de trabajo
 # actual con "getwd()".
 
+# Instalamos, si no lo está, la librería feather
+if (!require("feather", quietly = TRUE)) {
+  install.packages("feather")
+}
+
 # Instalamos, si no lo está, la librería arrow
-if (!require(arrow, quietly = TRUE)) {
-  install.package(arrow)
+if (!require("arrow", quietly = TRUE)) {
+  install.packages("arrow")
 }
 
 # Cargar la librería arrow
 library(arrow)
 
 # El nombre del objeto que se quiere guardar
-sObj <- "mi_dataframe"
+sObj <- "countData"
 
 # Añado a cada nombre de objeto, la extensión ".feather"
 sObjName <- paste(c(sObj, "feather"), collapse = ".")
 
 # Guardamos el objeto extensión feather
-feather::write_feather(get(sObj), sObjName)
+write_feather(get(sObj), sObjName)
 
 rm(sObj, sObjName)

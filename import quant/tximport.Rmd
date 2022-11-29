@@ -23,6 +23,8 @@ En resumen, tximport se utiliza después de la cuantificación de transcritos co
 
 Se ha utilizado este tutoríal como referencia: [tutorial tximport](https://bioconductor.org/packages/release/bioc/vignettes/tximport/inst/doc/tximport.html)
 
+Tanto para la cuantificación con SALMON, como para importar los datos con tximport, se ha utilizado la versión del genoma/transcriptoma de *Homo Sapiens* GRh38 [genoma homo sapiens GRh38](ftp://ftp.ensembl.org/pub/release-96/gtf/homo_sapiens/Homo_sapiens.GRCh38.96.gtf.gz)
+
 Primero, instalamos el paquete "tximport". Para instalar cualquier paquete de bioconductor, se utiliza "BiocManager", un manejador de dependencias de bioconductor.
 
 ```{r instalar tximport}

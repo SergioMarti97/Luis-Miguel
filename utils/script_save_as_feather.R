@@ -14,9 +14,14 @@
 args = commandArgs(trailingOnly = TRUE)
 
 if (length(args) > 0) {
+  # Instalamos, si no lo está, la librería feather
+  if (!require("feather", quietly = TRUE)) {
+    install.packages("feather")
+  }
+  
   # Instalamos, si no lo está, la librería arrow
-  if (!require(arrow, quietly = TRUE)) {
-    install.package(arrow)
+  if (!require("arrow", quietly = TRUE)) {
+    install.package("arrow")
   }
   
   # Cargar la librería arrow

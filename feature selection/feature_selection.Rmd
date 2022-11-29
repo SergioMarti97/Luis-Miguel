@@ -11,9 +11,130 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Seleccion de caracteristicas
 
+Los análisis para la reducción de la dimensionalidad, se dividen en dos grupos: la extracción de características y la selección de características. La selección de características se centra en seleccionar o filtrar las variables más relevantes para el análisis estadístico.
+
+Es recomendable aplicar algún tipo de filtro de selección, por dos motivos: reducir el número de características (features) facilita y agiliza el análisis al trabajar con un volumen de datos menor, trabajar con muchas variables puede probocar un sobreajuste o *overfitting*.
+
+## Adquisición de datos
+
+Primero, leemos los datos con los que se va a trabajar. Se va a trabajar sobre los datos de Luis Miguel, en concreto, sobre los "counts" detectados para cada gen.
+
+Los "counts" de cada gen, estan guardados como un objeto ".RDS" dentro del proyecto. Están en forma de matriz (large matrix) que es la forma que devuelve tximport los datos.
+
 ```{r}
-
-counts <- readRDS("C:/Users/nuria/Desktop/Luis Miguel TFG/counts.rds")
-
+# Cargar countData como un dataframe
+mCountData <- readRDS("../countData.RDS")
+dfCountData <- as.data.frame(mCountData)
+ncol(mCountData)
+nrow(mCountData)
 ```
 
+La matriz se encuentra organizada de la siguiente forma: las filas son los genes y las columnas las muestras. Para poder trabajar de forma que los genes sean variables, se debe de transponer la matriz (cambiar filas por columnas).
+
+```{r}
+# Transponer la matriz
+mTemp <- t(mCountData)
+dfCountDataT <- as.data.frame(mTemp)
+rm(mTemp)
+```
+
+## Filtrar Nulos o Nan
+
+Una primera selección, es filtrar las variables en busca de Nulos o Nan (Not a number).
+
+```{r}
+# Asegurarse que todos son numericos
+sum(!apply(dfCountDataT, 2, is.numeric))
+
+# Asegurarse que todos son numericos
+sum(apply(dfCountDataT, 2, is.null))
+```
+
+Todos los valores del dataframe son numericos, y ninguno es nulo.
+
+## Filtro de la varianza
+
+La varianza es un estimador de la información. Una variable con una mayor varianza, significa que contiene una mayor información que una variable con menos varianza. Una variable con varianza 0, significa que no varia, por lo que no aporta nada de información, ya que significa que en la muestra, esa variable siempre toma el mismo valor.
+
+Se puede filtrar para eliminar las variables (genes) que no varían. Además, se puede observar la distribución de la varianza en el dataframe, por si se quiere aplicar un filtro de varianza más restrictivo.
+
+Los genes que no varían, se pueden guardar, ya que el hecho que no resulten alterados también es relevante a nivel biológico.
+
+```{r}
+# Calcular la varianza para cada columna
+lVar <- lapply(dfCountDataT, var)
+# Redondeo a 3 decimales
+lVar <- round(as.numeric(lVar), 3)
+
+# Genero un nuevo dataframe, con los valores de varianza asociado a cada gen
+dfVar <- DataFrame(gene_id = colnames(dfCountDataT), var = lVar)
+
+# Se contar ahora los genes cuya varianza es cercana a 0
+nrow(dfVar[dfVar$var == 0, ])
+```
+
+Hay 5530 genes cuya varianza es 0 o cercana a 0 (con un error de 3 decimales). Estas variables no son interesantes para un análisis estadístico, ya que no esta aportando inforación. Pero, si que son interesantes para un análisis funcional (que genes son, que función realizan).
+
+```{r}
+# Listar los genes que no varían
+lLowVarGenes <- dfVar[dfVar$var == 0, ]$gene_id
+
+# Seleccionar y guardar los genes del dataframe con varianza cercana a 0
+saveRDS(dfCountDataT[,lLowVarGenes], "./countDataLowVar.RDS")
+
+# Eliminar del dataframe los genes con varianza cercana a 0
+library(tidyverse)
+
+lHighVarGenes <- dfVar[dfVar$var > 0, ]$gene_id
+dfCountDataHighVar <- dfCountDataT %>% select(all_of(lHighVarGenes))
+
+rm(lLowVarGenes, lHighVarGenes)
+```
+
+Si se quiere aplicar un filtro más estricto, aplicando un límite (threshold) de la varianza mayor que 0, sería interesante estudiar la distribución del número de genes según su varianza.
+
+```{r}
+# Histograma número genes según varianza
+library(ggplot2)
+
+# Creamos el gráfico
+# @see "http://www.sthda.com/english/wiki/ggplot2-histogram-plot-quick-start-guide-r-software-and-data-visualization"
+gVar <- ggplot(data.frame(x = log(lVar[ lVar > 0])), aes(x=x)) + 
+  geom_histogram(bins = 120, color="black", fill="white") +
+  xlab("Logarítmo de la Varianza") + 
+  ylab("Número de genes") +
+  ggtitle("Histograma Genes según varianza")
+
+# Mostramos el gráfico
+gVar
+```
+
+Esta gráfica, puede ayudar a marcar un *threshold* (un límite) para seleccionar los genes que más información aporten. La gráfica es un histograma en el cual se esta representando: en el eje Y, el número de genes; en el eje X el logarítmo de la varianza. Se ha aplicado el logarítmo porque la varianza toma valores muy extremos.
+
+```{r}
+# Si aplicasemos un filtro de varianza > 1
+threshold <- 1
+nGenesByThreshold <- length(dfVar[dfVar$var > threshold, ]$gene_id)
+
+# Lo gráficamos
+gVar + 
+  ggtitle(paste0(c("Filtro var >", threshold, ":", nGenesByThreshold, "genes"), collapse = " ")) +
+  geom_vline(aes(xintercept=log(threshold)), color="blue", linetype="dashed", size=1)
+
+# Si aplicasemos un filtro de varianza > 100
+threshold <- 1500
+nGenesByThreshold <- length(dfVar[dfVar$var > threshold, ]$gene_id)
+
+# Lo gráficamos
+gVar + 
+  ggtitle(paste0(c("Filtro var >", threshold, ":", nGenesByThreshold, "genes"), collapse = " ")) +
+  geom_vline(aes(xintercept=log(threshold)), color="blue", linetype="dashed", size=1)
+
+rm(threshold, nGenesByThreshold)
+```
+
+Lo que intentan mostrar estos gráficos, es que aplicando un filtro "varianza \> threshold", se deshechan todos los genes que se encuentran a la izquierda de la gráfica, quedando lo genes de la derecha.
+
+Otra vía para aplicar un filtro según la varianza, es seleccionando un número fijo de variables que tengan la mayor varianza. En otras palabras, ordenar las variables de mayor a menor información, y escoger solamente las 100 primeras. Este cribado, lo realiza la función para el PCA de DESeq2, operando por defecto con las 500 primeras variables.
+
+## Filtro de características correlacionadas
