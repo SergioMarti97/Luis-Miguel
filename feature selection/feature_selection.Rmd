@@ -154,15 +154,9 @@ La correlación se calcula a partir de la covarianza, que es un estadístico que
 
 ### Matriz de correlación
 
-La forma de ver que variables se encuentran correlacionadas, es mediante una matriz de correlaciones. Es decir, la correlación de cada variable con el resto de las variables. Esta matriz tiene "num variables"\^2 elementos.
+La forma de ver que variables se encuentran correlacionadas, es mediante una matriz de correlaciones. Es decir, la correlación de cada variable con el resto de las variables. Esta matriz tiene "num variables"\^2 elementos. 
 
-La matriz de correlación resultante al trabajar con 32.714 características tendría 1.070.205.796 elementos, que al estar codificados como valores de coma flotante de doble precision (64 bits o 8 bytes), ocupa 8,6GB en memoría (RAM). Este tamaño de la matriz vuelve inviable realizar cualquier trabajo.
-
-Sin embargo, no es del todo posible trabajar con matrices de este tamaño. Es necesario una máquina potente (al menos 32GB de RAM) y usar tipos de coma flotante de precisión simple (32bits o 4 bytes). Esto reduce el tamaño del objeto a la mitad (4.3GB).
-
-La librería "float" introduce una función "fl()", la cual, transforma los datos guardados como *float* 64bits de doble precisión (también llamados *double*) a *float* 32bits de precisión simple (también llamados *float* a secas).
-
-La diferencia de precisión es que los *float* tienen 7 cifras decimales y los *double* tienen 15 cifras. Para el trabajo que se requiere en este caso, 7 cifras son más que suficientes.
+Dado que es una matriz muy grande, se van a almacenar con números de coma flotante de precisión simple. No afecta al resultado.
 
 ```{r}
 # Instalar, si no lo está, la librería float
@@ -179,11 +173,5 @@ mCorLight <- fl(cor(dfCountDataHighVar))
 # La matriz generada es muy grande y pesada, guardar directamente
 saveRDS(mCorLight, "./mCorCountDataHighVarLight.RDS")
 ```
-
-Una optimización para reducir más el tamaño en memoria de la matriz, sería binarizar el contenido. La correlación toma valores entre -1 y 1. Si toma valor 0, no hay relación, 1 hay una relación directamente proporcional y -1 una relación inversamente proporcional.
-
-Si se aplica una transformación a los datos de la matriz, con la cual, se binarizan los valores decimales y se convierten en 0, 1 y -1, se puede ahorrar mucha más memoría. Además, existen librerías que estan pensadas con proposito: permiten mantener en memoria matrices muy grandes siempre que sean binarias, ya que los trozos de la matriz que sean 0, directamente no se almacenan.
-
-Estas librerías utilizan un truco, ya que almacenan solamente la posición "fila"/"columna" de los elementos de la matriz con valor 1. Esto reduce significativamente la información, ya que de esta forma no se tienen que guardar todos los elementos de la matriz. La posición, dos valores enteros, se pueden representar como *int* (4 bytes). Sin embargo, el tipo *int*
 
 El siguiente problema, es que esta matriz no se puede representar gráficamente.
