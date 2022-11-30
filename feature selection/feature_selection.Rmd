@@ -1,8 +1,10 @@
 ---
 title: "feature selection"
-author: "Nuria"
-date: "2022-11-22"
-output: html_document
+author: "Nuria & Sergio"
+date: '2022-11-22'
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -52,11 +54,11 @@ sum(apply(dfCountDataT, 2, is.null))
 
 Todos los valores del dataframe son numericos, y ninguno es nulo.
 
-## Filtro de la varianza
+## Filtrar según la varianza
 
-La varianza es un estimador de la información. Una variable con una mayor varianza, significa que contiene una mayor información que una variable con menos varianza. Una variable con varianza 0, significa que no varia, por lo que no aporta nada de información, ya que significa que en la muestra, esa variable siempre toma el mismo valor.
+La varianza es un estimador de la información. Una variable con una mayor varianza, significa que aporta una mayor información que una variable con menos varianza. Una variable con varianza 0 (es decir: no varia), no aporta nada de información, ya que en la muestra esa variable siempre toma el mismo valor.
 
-Se puede filtrar para eliminar las variables (genes) que no varían. Además, se puede observar la distribución de la varianza en el dataframe, por si se quiere aplicar un filtro de varianza más restrictivo.
+Se puede filtrar para eliminar las variables (genes) que no varían. Además, se puede observar la distribución de la varianza, por si se quiere aplicar un filtro más restrictivo.
 
 Los genes que no varían, se pueden guardar, ya que el hecho que no resulten alterados también es relevante a nivel biológico.
 
@@ -67,13 +69,13 @@ lVar <- lapply(dfCountDataT, var)
 lVar <- round(as.numeric(lVar), 3)
 
 # Genero un nuevo dataframe, con los valores de varianza asociado a cada gen
-dfVar <- DataFrame(gene_id = colnames(dfCountDataT), var = lVar)
+dfVar <- data.frame(gene_id = colnames(dfCountDataT), var = lVar)
 
 # Se contar ahora los genes cuya varianza es cercana a 0
 nrow(dfVar[dfVar$var == 0, ])
 ```
 
-Hay 5530 genes cuya varianza es 0 o cercana a 0 (con un error de 3 decimales). Estas variables no son interesantes para un análisis estadístico, ya que no esta aportando inforación. Pero, si que son interesantes para un análisis funcional (que genes son, que función realizan).
+Hay 5530 genes cuya varianza es 0 o cercana a 0 (con un error de 3 decimales). Estas variables no son interesantes para un análisis estadístico, pero, si que lo son para un análisis funcional (que genes son, que función realizan).
 
 ```{r}
 # Listar los genes que no varían
@@ -87,6 +89,7 @@ library(tidyverse)
 
 lHighVarGenes <- dfVar[dfVar$var > 0, ]$gene_id
 dfCountDataHighVar <- dfCountDataT %>% select(all_of(lHighVarGenes))
+dfCountDataHighVar <- as.data.frame(dfCountDataHighVar)
 
 rm(lLowVarGenes, lHighVarGenes)
 ```
@@ -135,6 +138,52 @@ rm(threshold, nGenesByThreshold)
 
 Lo que intentan mostrar estos gráficos, es que aplicando un filtro "varianza \> threshold", se deshechan todos los genes que se encuentran a la izquierda de la gráfica, quedando lo genes de la derecha.
 
-Otra vía para aplicar un filtro según la varianza, es seleccionando un número fijo de variables que tengan la mayor varianza. En otras palabras, ordenar las variables de mayor a menor información, y escoger solamente las 100 primeras. Este cribado, lo realiza la función para el PCA de DESeq2, operando por defecto con las 500 primeras variables.
+Otra vía para aplicar un filtro es seleccionar un número fijo de variables. En otras palabras, ordenar las variables de mayor a menor información, y escoger solamente las 100 primeras. Este cribado, lo realiza la función para el PCA de DESeq2, operando por defecto con las 500 primeras variables con mayor varianza.
+
+```{r}
+rm(mCountData, dfCountData, lVar, dfVar, gVar)
+```
 
 ## Filtro de características correlacionadas
+
+Si aplicar un filtro de varianza cercana a 0 significa: "elimino aquellas características que no dicen nada", aplicar un filtro de características correlacionadas significa: "elimino aquellas características que dicen lo mismo".
+
+Es relevante realizar un estudio de la correlación entre las características (o de correlación de las características con una variable predictoria, objetivo o "*target*"), ya que puede ayudar a determinar el método de un posterior análisis de extracción de características. Si las variables están altamente correlacionadas, aplicar un PCA (Análisis de Componentes Principales) sería el método más adecuado. En caso contrario, otro método no lineal sería más idoneo (ej: t-SNE).
+
+La correlación se calcula a partir de la covarianza, que es un estadístico que mide en que relación varían dos poblaciones. Por lo tanto, si a partir de la varianza se estima la información, la correlación y la covarianza estiman si dos variables tienen la misma información.
+
+### Matriz de correlación
+
+La forma de ver que variables se encuentran correlacionadas, es mediante una matriz de correlaciones. Es decir, la correlación de cada variable con el resto de las variables. Esta matriz tiene "num variables"\^2 elementos.
+
+La matriz de correlación resultante al trabajar con 32.714 características tendría 1.070.205.796 elementos, que al estar codificados como valores de coma flotante de doble precision (64 bits o 8 bytes), ocupa 8,6GB en memoría (RAM). Este tamaño de la matriz vuelve inviable realizar cualquier trabajo.
+
+Sin embargo, no es del todo posible trabajar con matrices de este tamaño. Es necesario una máquina potente (al menos 32GB de RAM) y usar tipos de coma flotante de precisión simple (32bits o 4 bytes). Esto reduce el tamaño del objeto a la mitad (4.3GB).
+
+La librería "float" introduce una función "fl()", la cual, transforma los datos guardados como *float* 64bits de doble precisión (también llamados *double*) a *float* 32bits de precisión simple (también llamados *float* a secas).
+
+La diferencia de precisión es que los *float* tienen 7 cifras decimales y los *double* tienen 15 cifras. Para el trabajo que se requiere en este caso, 7 cifras son más que suficientes.
+
+```{r}
+# Instalar, si no lo está, la librería float
+if (!require("float", quietly = TRUE)) {
+  install.packages("float")
+}
+
+# Cargar la librería
+library(float)
+
+# Aplicamos la función "cor()" para obtener la matriz de correlaciones
+mCorLight <- fl(cor(dfCountDataHighVar))
+
+# La matriz generada es muy grande y pesada, guardar directamente
+saveRDS(mCorLight, "./mCorCountDataHighVarLight.RDS")
+```
+
+Una optimización para reducir más el tamaño en memoria de la matriz, sería binarizar el contenido. La correlación toma valores entre -1 y 1. Si toma valor 0, no hay relación, 1 hay una relación directamente proporcional y -1 una relación inversamente proporcional.
+
+Si se aplica una transformación a los datos de la matriz, con la cual, se binarizan los valores decimales y se convierten en 0, 1 y -1, se puede ahorrar mucha más memoría. Además, existen librerías que estan pensadas con proposito: permiten mantener en memoria matrices muy grandes siempre que sean binarias, ya que los trozos de la matriz que sean 0, directamente no se almacenan.
+
+Estas librerías utilizan un truco, ya que almacenan solamente la posición "fila"/"columna" de los elementos de la matriz con valor 1. Esto reduce significativamente la información, ya que de esta forma no se tienen que guardar todos los elementos de la matriz. La posición, dos valores enteros, se pueden representar como *int* (4 bytes). Sin embargo, el tipo *int*
+
+El siguiente problema, es que esta matriz no se puede representar gráficamente.

@@ -1,0 +1,378 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+%
+\documentclass[
+]{article}
+\usepackage{amsmath,amssymb}
+\usepackage{lmodern}
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math}
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{xcolor}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\IfFileExists{bookmark.sty}{\usepackage{bookmark}}{\usepackage{hyperref}}
+\hypersetup{
+  pdftitle={feature selection},
+  pdfauthor={Nuria \& Sergio},
+  hidelinks,
+  pdfcreator={LaTeX via pandoc}}
+\urlstyle{same} % disable monospaced font for URLs
+\usepackage[margin=1in]{geometry}
+\usepackage{color}
+\usepackage{fancyvrb}
+\newcommand{\VerbBar}{|}
+\newcommand{\VERB}{\Verb[commandchars=\\\{\}]}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\}}
+% Add ',fontsize=\small' for more characters per line
+\usepackage{framed}
+\definecolor{shadecolor}{RGB}{248,248,248}
+\newenvironment{Shaded}{\begin{snugshade}}{\end{snugshade}}
+\newcommand{\AlertTok}[1]{\textcolor[rgb]{0.94,0.16,0.16}{#1}}
+\newcommand{\AnnotationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\AttributeTok}[1]{\textcolor[rgb]{0.77,0.63,0.00}{#1}}
+\newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\BuiltInTok}[1]{#1}
+\newcommand{\CharTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\CommentTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\ConstantTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\ControlFlowTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\DataTypeTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{#1}}
+\newcommand{\DecValTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\DocumentationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\ErrorTok}[1]{\textcolor[rgb]{0.64,0.00,0.00}{\textbf{#1}}}
+\newcommand{\ExtensionTok}[1]{#1}
+\newcommand{\FloatTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\ImportTok}[1]{#1}
+\newcommand{\InformationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\NormalTok}[1]{#1}
+\newcommand{\OperatorTok}[1]{\textcolor[rgb]{0.81,0.36,0.00}{\textbf{#1}}}
+\newcommand{\OtherTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{#1}}
+\newcommand{\PreprocessorTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\RegionMarkerTok}[1]{#1}
+\newcommand{\SpecialCharTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\SpecialStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\StringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\VariableTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\VerbatimStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\WarningTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\usepackage{graphicx}
+\makeatletter
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
+\makeatother
+% Scale images if necessary, so that they will not overflow the page
+% margins by default, and it is still possible to overwrite the defaults
+% using explicit options in \includegraphics[width, height, ...]{}
+\setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
+% Set default figure placement to htbp
+\makeatletter
+\def\fps@figure{htbp}
+\makeatother
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+\ifLuaTeX
+  \usepackage{selnolig}  % disable illegal ligatures
+\fi
+
+\title{feature selection}
+\author{Nuria \& Sergio}
+\date{2022-11-22}
+
+\begin{document}
+\maketitle
+
+\hypertarget{seleccion-de-caracteristicas}{%
+\section{Seleccion de
+caracteristicas}\label{seleccion-de-caracteristicas}}
+
+Los análisis para la reducción de la dimensionalidad, se dividen en dos
+grupos: la extracción de características y la selección de
+características. La selección de características se centra en
+seleccionar o filtrar las variables más relevantes para el análisis
+estadístico.
+
+Es recomendable aplicar algún tipo de filtro de selección, por dos
+motivos: reducir el número de características (features) facilita y
+agiliza el análisis al trabajar con un volumen de datos menor, trabajar
+con muchas variables puede probocar un sobreajuste o \emph{overfitting}.
+
+\hypertarget{adquisiciuxf3n-de-datos}{%
+\subsection{Adquisición de datos}\label{adquisiciuxf3n-de-datos}}
+
+Primero, leemos los datos con los que se va a trabajar. Se va a trabajar
+sobre los datos de Luis Miguel, en concreto, sobre los ``counts''
+detectados para cada gen.
+
+Los ``counts'' de cada gen, estan guardados como un objeto ``.RDS''
+dentro del proyecto. Están en forma de matriz (large matrix) que es la
+forma que devuelve tximport los datos.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# Cargar countData como un dataframe}
+\NormalTok{mCountData }\OtherTok{\textless{}{-}} \FunctionTok{readRDS}\NormalTok{(}\StringTok{"../countData.RDS"}\NormalTok{)}
+\NormalTok{dfCountData }\OtherTok{\textless{}{-}} \FunctionTok{as.data.frame}\NormalTok{(mCountData)}
+\FunctionTok{ncol}\NormalTok{(mCountData)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## [1] 28
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{nrow}\NormalTok{(mCountData)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## [1] 38244
+\end{verbatim}
+
+La matriz se encuentra organizada de la siguiente forma: las filas son
+los genes y las columnas las muestras. Para poder trabajar de forma que
+los genes sean variables, se debe de transponer la matriz (cambiar filas
+por columnas).
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# Transponer la matriz}
+\NormalTok{mTemp }\OtherTok{\textless{}{-}} \FunctionTok{t}\NormalTok{(mCountData)}
+\NormalTok{dfCountDataT }\OtherTok{\textless{}{-}} \FunctionTok{as.data.frame}\NormalTok{(mTemp)}
+\FunctionTok{rm}\NormalTok{(mTemp)}
+\end{Highlighting}
+\end{Shaded}
+
+\hypertarget{filtrar-nulos-o-nan}{%
+\subsection{Filtrar Nulos o Nan}\label{filtrar-nulos-o-nan}}
+
+Una primera selección, es filtrar las variables en busca de Nulos o Nan
+(Not a number).
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# Asegurarse que todos son numericos}
+\FunctionTok{sum}\NormalTok{(}\SpecialCharTok{!}\FunctionTok{apply}\NormalTok{(dfCountDataT, }\DecValTok{2}\NormalTok{, is.numeric))}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## [1] 0
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# Asegurarse que todos son numericos}
+\FunctionTok{sum}\NormalTok{(}\FunctionTok{apply}\NormalTok{(dfCountDataT, }\DecValTok{2}\NormalTok{, is.null))}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## [1] 0
+\end{verbatim}
+
+Todos los valores del dataframe son numericos, y ninguno es nulo.
+
+\hypertarget{filtro-de-la-varianza}{%
+\subsection{Filtro de la varianza}\label{filtro-de-la-varianza}}
+
+La varianza es un estimador de la información. Una variable con una
+mayor varianza, significa que contiene una mayor información que una
+variable con menos varianza. Una variable con varianza 0, significa que
+no varia, por lo que no aporta nada de información, ya que significa que
+en la muestra, esa variable siempre toma el mismo valor.
+
+Se puede filtrar para eliminar las variables (genes) que no varían.
+Además, se puede observar la distribución de la varianza en el
+dataframe, por si se quiere aplicar un filtro de varianza más
+restrictivo.
+
+Los genes que no varían, se pueden guardar, ya que el hecho que no
+resulten alterados también es relevante a nivel biológico.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# Calcular la varianza para cada columna}
+\NormalTok{lVar }\OtherTok{\textless{}{-}} \FunctionTok{lapply}\NormalTok{(dfCountDataT, var)}
+\CommentTok{\# Redondeo a 3 decimales}
+\NormalTok{lVar }\OtherTok{\textless{}{-}} \FunctionTok{round}\NormalTok{(}\FunctionTok{as.numeric}\NormalTok{(lVar), }\DecValTok{3}\NormalTok{)}
+
+\CommentTok{\# Genero un nuevo dataframe, con los valores de varianza asociado a cada gen}
+\NormalTok{dfVar }\OtherTok{\textless{}{-}} \FunctionTok{data.frame}\NormalTok{(}\AttributeTok{gene\_id =} \FunctionTok{colnames}\NormalTok{(dfCountDataT), }\AttributeTok{var =}\NormalTok{ lVar)}
+
+\CommentTok{\# Se contar ahora los genes cuya varianza es cercana a 0}
+\FunctionTok{nrow}\NormalTok{(dfVar[dfVar}\SpecialCharTok{$}\NormalTok{var }\SpecialCharTok{==} \DecValTok{0}\NormalTok{, ])}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## [1] 5530
+\end{verbatim}
+
+Hay 5530 genes cuya varianza es 0 o cercana a 0 (con un error de 3
+decimales). Estas variables no son interesantes para un análisis
+estadístico, ya que no esta aportando inforación. Pero, si que son
+interesantes para un análisis funcional (que genes son, que función
+realizan).
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# Listar los genes que no varían}
+\NormalTok{lLowVarGenes }\OtherTok{\textless{}{-}}\NormalTok{ dfVar[dfVar}\SpecialCharTok{$}\NormalTok{var }\SpecialCharTok{==} \DecValTok{0}\NormalTok{, ]}\SpecialCharTok{$}\NormalTok{gene\_id}
+
+\CommentTok{\# Seleccionar y guardar los genes del dataframe con varianza cercana a 0}
+\FunctionTok{saveRDS}\NormalTok{(dfCountDataT[,lLowVarGenes], }\StringTok{"./countDataLowVar.RDS"}\NormalTok{)}
+
+\CommentTok{\# Eliminar del dataframe los genes con varianza cercana a 0}
+\FunctionTok{library}\NormalTok{(tidyverse)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## Warning: package 'tidyverse' was built under R version 4.2.1
+\end{verbatim}
+
+\begin{verbatim}
+## -- Attaching packages --------------------------------------- tidyverse 1.3.2 --
+## v ggplot2 3.3.5      v purrr   0.3.4 
+## v tibble  3.1.6      v dplyr   1.0.10
+## v tidyr   1.2.0      v stringr 1.4.0 
+## v readr   2.1.2      v forcats 0.5.1
+\end{verbatim}
+
+\begin{verbatim}
+## Warning: package 'readr' was built under R version 4.2.1
+\end{verbatim}
+
+\begin{verbatim}
+## Warning: package 'dplyr' was built under R version 4.2.1
+\end{verbatim}
+
+\begin{verbatim}
+## -- Conflicts ------------------------------------------ tidyverse_conflicts() --
+## x dplyr::filter() masks stats::filter()
+## x dplyr::lag()    masks stats::lag()
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{lHighVarGenes }\OtherTok{\textless{}{-}}\NormalTok{ dfVar[dfVar}\SpecialCharTok{$}\NormalTok{var }\SpecialCharTok{\textgreater{}} \DecValTok{0}\NormalTok{, ]}\SpecialCharTok{$}\NormalTok{gene\_id}
+\NormalTok{dfCountDataHighVar }\OtherTok{\textless{}{-}}\NormalTok{ dfCountDataT }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{select}\NormalTok{(}\FunctionTok{all\_of}\NormalTok{(lHighVarGenes))}
+
+\FunctionTok{rm}\NormalTok{(lLowVarGenes, lHighVarGenes)}
+\end{Highlighting}
+\end{Shaded}
+
+Si se quiere aplicar un filtro más estricto, aplicando un límite
+(threshold) de la varianza mayor que 0, sería interesante estudiar la
+distribución del número de genes según su varianza.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# Histograma número genes según varianza}
+\FunctionTok{library}\NormalTok{(ggplot2)}
+
+\CommentTok{\# Creamos el gráfico}
+\CommentTok{\# @see "http://www.sthda.com/english/wiki/ggplot2{-}histogram{-}plot{-}quick{-}start{-}guide{-}r{-}software{-}and{-}data{-}visualization"}
+\NormalTok{gVar }\OtherTok{\textless{}{-}} \FunctionTok{ggplot}\NormalTok{(}\FunctionTok{data.frame}\NormalTok{(}\AttributeTok{x =} \FunctionTok{log}\NormalTok{(lVar[ lVar }\SpecialCharTok{\textgreater{}} \DecValTok{0}\NormalTok{])), }\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{x)) }\SpecialCharTok{+} 
+  \FunctionTok{geom\_histogram}\NormalTok{(}\AttributeTok{bins =} \DecValTok{120}\NormalTok{, }\AttributeTok{color=}\StringTok{"black"}\NormalTok{, }\AttributeTok{fill=}\StringTok{"white"}\NormalTok{) }\SpecialCharTok{+}
+  \FunctionTok{xlab}\NormalTok{(}\StringTok{"Logarítmo de la Varianza"}\NormalTok{) }\SpecialCharTok{+} 
+  \FunctionTok{ylab}\NormalTok{(}\StringTok{"Número de genes"}\NormalTok{) }\SpecialCharTok{+}
+  \FunctionTok{ggtitle}\NormalTok{(}\StringTok{"Histograma Genes según varianza"}\NormalTok{)}
+
+\CommentTok{\# Mostramos el gráfico}
+\NormalTok{gVar}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{feature_selection_files/figure-latex/unnamed-chunk-6-1.pdf}
+
+Esta gráfica, puede ayudar a marcar un \emph{threshold} (un límite) para
+seleccionar los genes que más información aporten. La gráfica es un
+histograma en el cual se esta representando: en el eje Y, el número de
+genes; en el eje X el logarítmo de la varianza. Se ha aplicado el
+logarítmo porque la varianza toma valores muy extremos.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# Si aplicasemos un filtro de varianza \textgreater{} 1}
+\NormalTok{threshold }\OtherTok{\textless{}{-}} \DecValTok{1}
+\NormalTok{nGenesByThreshold }\OtherTok{\textless{}{-}} \FunctionTok{length}\NormalTok{(dfVar[dfVar}\SpecialCharTok{$}\NormalTok{var }\SpecialCharTok{\textgreater{}}\NormalTok{ threshold, ]}\SpecialCharTok{$}\NormalTok{gene\_id)}
+
+\CommentTok{\# Lo gráficamos}
+\NormalTok{gVar }\SpecialCharTok{+} 
+  \FunctionTok{ggtitle}\NormalTok{(}\FunctionTok{paste0}\NormalTok{(}\FunctionTok{c}\NormalTok{(}\StringTok{"Filtro var \textgreater{}"}\NormalTok{, threshold, }\StringTok{":"}\NormalTok{, nGenesByThreshold, }\StringTok{"genes"}\NormalTok{), }\AttributeTok{collapse =} \StringTok{" "}\NormalTok{)) }\SpecialCharTok{+}
+  \FunctionTok{geom\_vline}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{xintercept=}\FunctionTok{log}\NormalTok{(threshold)), }\AttributeTok{color=}\StringTok{"blue"}\NormalTok{, }\AttributeTok{linetype=}\StringTok{"dashed"}\NormalTok{, }\AttributeTok{size=}\DecValTok{1}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{feature_selection_files/figure-latex/unnamed-chunk-7-1.pdf}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# Si aplicasemos un filtro de varianza \textgreater{} 100}
+\NormalTok{threshold }\OtherTok{\textless{}{-}} \DecValTok{1500}
+\NormalTok{nGenesByThreshold }\OtherTok{\textless{}{-}} \FunctionTok{length}\NormalTok{(dfVar[dfVar}\SpecialCharTok{$}\NormalTok{var }\SpecialCharTok{\textgreater{}}\NormalTok{ threshold, ]}\SpecialCharTok{$}\NormalTok{gene\_id)}
+
+\CommentTok{\# Lo gráficamos}
+\NormalTok{gVar }\SpecialCharTok{+} 
+  \FunctionTok{ggtitle}\NormalTok{(}\FunctionTok{paste0}\NormalTok{(}\FunctionTok{c}\NormalTok{(}\StringTok{"Filtro var \textgreater{}"}\NormalTok{, threshold, }\StringTok{":"}\NormalTok{, nGenesByThreshold, }\StringTok{"genes"}\NormalTok{), }\AttributeTok{collapse =} \StringTok{" "}\NormalTok{)) }\SpecialCharTok{+}
+  \FunctionTok{geom\_vline}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{xintercept=}\FunctionTok{log}\NormalTok{(threshold)), }\AttributeTok{color=}\StringTok{"blue"}\NormalTok{, }\AttributeTok{linetype=}\StringTok{"dashed"}\NormalTok{, }\AttributeTok{size=}\DecValTok{1}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{feature_selection_files/figure-latex/unnamed-chunk-7-2.pdf}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{rm}\NormalTok{(threshold, nGenesByThreshold)}
+\end{Highlighting}
+\end{Shaded}
+
+Lo que intentan mostrar estos gráficos, es que aplicando un filtro
+``varianza \textgreater{} threshold'', se deshechan todos los genes que
+se encuentran a la izquierda de la gráfica, quedando lo genes de la
+derecha.
+
+Otra vía para aplicar un filtro según la varianza, es seleccionando un
+número fijo de variables que tengan la mayor varianza. En otras
+palabras, ordenar las variables de mayor a menor información, y escoger
+solamente las 100 primeras. Este cribado, lo realiza la función para el
+PCA de DESeq2, operando por defecto con las 500 primeras variables con
+mayor varianza.
+
+\hypertarget{filtro-de-caracteruxedsticas-correlacionadas}{%
+\subsection{Filtro de características
+correlacionadas}\label{filtro-de-caracteruxedsticas-correlacionadas}}
+
+\end{document}
