@@ -5,7 +5,7 @@ output:
     df_print: paged
 ---
 
-# Volcano plot
+# Differential Expressed Genes
 
 @see: http://dputhier.github.io/jgb71e-polytech-bioinfo-app/practical/rna-seq_R/rnaseq_diff_Snf2.html
 
@@ -89,11 +89,13 @@ dds
 ```
 
 
-## Volcano plot
+## Diferential Expressed Genes
 
-Aplicar la fución "DESeq" del paquete DESeq2 para obtener los datos del FC y el p valor. Estos datos permitirán aplicar un filtro para obtener los *differential expressed genes* más relevantes.
+Aplicar la fución "DESeq" del paquete DESeq2 para obtener los datos del FC y el p valor. Estos datos permitirán aplicar un filtro para obtener los *differential expressed genes* o "DEGs" más relevantes.
 
 ```{r}
+library(DESeq2)
+
 # Aplicar función "DESeq"
 dds <- DESeq(dds, betaPrior=FALSE)
 
@@ -106,20 +108,41 @@ head(res)
 saveRDS(res, "./differentialExpresionResults.RDS")
 ```
 
-Posiblemente, por un problema con la versión de SALMON (según Antonio), la anotación de los IDs de los genes no permite asociarlos con el gen al cual referencian. Si se modifica la parte diferente, el problema se soluciona.
+## Doble filtro
+
+Aplicamos el doble filtro (FC y p-valor) para obtener los genes más relevantes que se expresan de forma diferente.
 
 ```{r}
-# Por algún motivo, el ID del gen tiene una coletilla tipo: ".01". La base de datos
-# no lo reconoce, así que es necesario eliminarlo
-lTxID <- row.names(res)
-lSplitedTxID <- unlist(strsplit(lTxID, "\\."))[seq(1, 2 * length(lTxID), 2)]
+# Omitimos los registros con NAs
+resNotNans <- na.omit(res)
 
-tTxIdToGene <- select(EnsDb.Hsapiens.v86, keys=lSplitedTxID, columns=cols, keytype="GENEID")
+# Parámetros
+# log2(FC) > 100
+# p-value > 5
+log2FC <- 2
+pValue <- 0.05
 
-res$genid <- lSplitedTxID
+# Filtro
+filtteredResults <- resNotNans[abs(resNotNans$log2FoldChange) > log2FC, ]
+filtteredResults <- filtteredResults[filtteredResults$pvalue < pValue, ]
 
-write.csv(res, "./differentialExpresionResults.csv")
+filtteredResults
+
+# Número de registros
+nrow(filtteredResults)
+
+saveRDS(filtteredResults, "./filtteredResults.RDS")
+write.csv(filtteredResults, "./filtteredResults.CSV")
+
+# @see: "https://rdrr.io/bioc/ReportingTools/man/makeDESeqDF.html"
+dfResults <- as.data.frame(filtteredResults)
+
+rm(resNotNans)
 ```
+
+## Añadir "gen name" y "gen change"
+
+Posiblemente, por un problema con la versión de SALMON (según Antonio), la anotación de los IDs de los genes no permite asociarlos con el gen al cual referencian. Si se modifica la parte diferente, el problema se soluciona.
 
 Ahora vamos a obtener una tabla que servirá para asociar el ID del gen con el nombre y símbolo del gen. 
 
@@ -132,74 +155,96 @@ columns(EnsDb.Hsapiens.v86)
 
 cols <- c("SYMBOL", "GENENAME")
 
-res <- readRDS("../Volcano Plot/differentialExpresionResults.RDS")
-
-head(res)
-
 # Por algún motivo, el ID del gen tiene una coletilla tipo: ".01". La base de datos
 # no lo reconoce, así que es necesario eliminarlo
 lTxID <- row.names(res)
-lSplitedTxID <- unlist(strsplit(lTxID, "\\."))[seq(1, 2 * length(lTxID), 2)]
+lSplittedTxID <- unlist(strsplit(lTxID, "\\."))[seq(1, 2 * length(lTxID), 2)]
 
-id2gene <- select(EnsDb.Hsapiens.v86, keys=lSplitedTxID, columns=cols, keytype="GENEID")
+id2gene <- select(EnsDb.Hsapiens.v86, keys=lSplittedTxID, columns=cols, keytype="GENEID")
 
-head(id2gene)
+rm(lTxID, lSplittedTxID)
 ```
 
-Aplicamos el doble filtro (FC y p-valor) para obtener los genes más relevantes que se expresan de forma diferente.
+Añado el nombre del gen a los resultados.
 
 ```{r}
-# Omitimos los registros con NAs
-resNotNans <- na.omit(res)
+# Creo una función, porque volveré a utilizarla posteriormente
+ObtainGenNames <- function(lGenIDs, id2gene) {
+  genName <-
+    unlist(lapply(lGenIDs, function(genid) {
+      splittedGenId <- strsplit(genid, "\\.")[1]
+      splittedGenId <- unlist(splittedGenId)[1]
+      name <- id2gene[id2gene$GENEID == splittedGenId,]$GENENAME
+      if (length(name) != 0) {
+        return(name)
+      } else {
+        return("Not Available")
+      }
+    }))
+  return(genName)
+}
 
-# Parámetros
-# log2(FC) > 100
-# p-value > 5
-log2FC <- log2(100)
-pValue <- log2(0.05)
+genName <- ObtainGenNames(rownames(filtteredResults), id2gene = id2gene)
 
-# Filtro
-filtteredResults <- resNotNans[resNotNans$log2FoldChange > log2FC, ]
-filtteredResults <- filtteredResults[filtteredResults$pvalue > pValue, ]
+# Número de transcritos que no estan asociados a ningún gen...
+length(genName[genName == "Not Available"])
 
-filtteredResults
+dfResults$`gen name` <- genName
 
-# Número de registros
-nrow(filtteredResults)
-
-saveRDS(filtteredResults, "./filtteredResults.RDS")
-write.csv(filtteredResults, "./filtteredResults.CSV")
+rm(filtteredResults)
 ```
 
-Guardo los resultados obtenidos como un dataframe, añadiendo el nombre del gen a los resultados.
+Para facilitar la comprensión de los resultados, se va a generar una nueva columna en el dataframe de los resultados para indicar si se reprime o se sobreexpresa el transcrito en concreto.
 
 ```{r}
+# Contabilizar el número de genes sobreexpresados y reprimidos
+# Sobreexpresados
+nrow(dfResults[dfResults$log2FoldChange > 0,])
+# Reprimidos
+nrow(dfResults[dfResults$log2FoldChange < 0,])
+# No cambian
+nrow(dfResults[dfResults$log2FoldChange == 0,])
 
-genName <- lapply(rownames(filtteredResults), function(genid) {
-  splittedGenId <- strsplit(genid, "\\.")[1]
-  splittedGenId <- unlist(splittedGenId)[1]
-  return(id2gene[id2gene$GENEID == splittedGenId, ]$GENENAME)
-  # return(id2gene[id2gene$GENEID == splittedGenId, ])
-})
-genName <- unlist(genName)
-# Por algún motivo, los 4 últimos son  NOT AVAILABLE. Consultar Antonio
-genName <- append(genName, rep("NA", 4))
+# También se guarda esta función porque se va utilizar más adelante
+ObtainChange <- function(lLog2FC) {
+  # Aquí guardo unas variables por si se quiere cambiar el texto de la variable "change".
+  sOverexpressed <- "overexpressed"
+  sRepressed <- "repressed"
+  sNoChange <- "no change"
+  
+  # Generar una variable que indica si se sobreexpresa o se reprime el transcrito
+  # Se genera en base al valor de la variable "log2FoldChange"
+  lGenChange <- unlist(lapply(lLog2FC, function(FC) {
+    if (abs(FC) > 0) {
+      return(sOverexpressed)
+    } else if (abs(FC) < 0) {
+      return(sRepressed)
+    } else {
+      return(sNoChange)
+    }
+  }))
+  
+  return(lGenChange)
+}
 
-filtteredResults
+# Añadir la nueva variable al dataframe con los resultados
+dfResults$`change` <- ObtainChange(dfResults$log2FoldChange)
+```
 
-# @see: "https://rdrr.io/bioc/ReportingTools/man/makeDESeqDF.html"
-dfResults <- as.data.frame(filtteredResults)
-dfResults$gen.name <- genName
+Guardamos el dataframe generado con los resultados.
 
-head(dfResults)
-
+```{r}
+# Guardar como un objeto serializado y como un csv
 saveRDS(dfResults, "./dfResults.RDS")
 write.csv(dfResults, "./dfResults.CSV")
 ```
 
+## Volcano plot
+
 Mostramos en forma de gráfica los resultados.
 
 ```{r}
+# Usando una función por defecto
 library('EnhancedVolcano')
 
 EnhancedVolcano(res,
@@ -207,4 +252,48 @@ EnhancedVolcano(res,
     x = 'log2FoldChange',
     y = 'pvalue')
 ```
+El gráfico de Volcano plot utilizando la función "EnhancedVolcano" no funciona como debería. Se va a proceder a crear el mismo gráfico con ggplot2.
+
+```{r}
+# Representando la misma gráfica pero ggplot2
+library(ggplot2)
+library(ggrepel)
+
+# Para mostrar todos los puntos del volcano plot, es necesario construir un
+# dataframe con toda la información
+
+# Genero un nuevo dataframe a partir del resultado de DESeq
+dfToPlot <- as.data.frame(res)
+# Añadir el nombre del gen
+dfToPlot$`gen name` <- ObtainGenNames(rownames(res), id2gene = id2gene)
+# Añadir el "change"
+lChange <- unlist(lapply(1:nrow(dfToPlot), function(iRow) {
+  FC <- dfToPlot[iRow,]$log2FoldChange
+  pv <- dfToPlot[iRow,]$pvalue
+  
+  if (is.na(FC) || is.na(pv)) {
+    return("not available")
+  }
+  
+  if (abs(FC) > log2FC && pv < pValue) {
+    return("log2FC and p-value")
+  } else if (abs(FC) > log2FC && pv > pValue) {
+    return("log2FC")
+  } else if (abs(FC) < log2FC && pv < pValue) {
+    return("p-value")
+  } else {
+    return("no change")
+  }
+}))
+dfToPlot$change <- lChange
+
+# Graficar
+ggplot(dfToPlot, aes(x = log2FoldChange, y = -log10(pvalue), color = change)) + 
+  geom_point()
+
+rm(dfToPlot)
+```
+
+
+
 
