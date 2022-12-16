@@ -1,0 +1,210 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Volcano plot
+
+@see: http://dputhier.github.io/jgb71e-polytech-bioinfo-app/practical/rna-seq_R/rnaseq_diff_Snf2.html
+
+## Paquetes necesarios
+
+```{r}
+if (!require('EnhancedVolcano', quietly = TRUE)) {
+   BiocManager::install('EnhancedVolcano')
+}
+
+# Instalar, si no está instalado, DESeq2: herramienta para el análisis transcriptómico aguas abajo
+if (!require("DESeq2", quietly = TRUE)) {
+  BiocManager::install("DESeq2")
+}
+
+```
+
+## Adquirir datos
+
+```{r}
+# --- Datos de expresion genética ---
+
+# El objeto que contiene toda la información esta guardado como .RDS
+txi <- readRDS("../import quant/txi.RDS")
+# Trabajaremos con los counts
+countData <- txi$counts
+
+# No vamos a trabajar más con txi, así que como ocupa 35MB, lo elimino de la memoria
+rm(txi)
+
+# La matriz tiene, en los nombres de las muetras, un sufijo después de una barra baja, que es el "sample ID" que se utilizó para secuenciarlo en illumina. Para que no de problemas, se van a renombrar
+
+# Elimino el sufijo "_Sxx" de los nombres de las columnas
+lNewColnames <- unlist(strsplit(colnames(countData), "_"))[seq(1, 2 * ncol(countData), 2)]
+
+# Asigno los nuevos nombres de las columnas a la matriz
+colnames(countData) <- lNewColnames
+
+# Muestro los primeros datos
+head(countData)
+
+rm(lNewColnames)
+
+# --- Datos clínicos ---
+
+# Cargar la librería necesaria para leer archivos excel
+library("readxl")
+
+# Leer los datos del excel
+clinicalData <- read_excel("../datos clinicos/dfClinical.xlsx")
+
+# Muestro los primeros datos
+head(clinicalData)
+
+# Los datos de la matriz estan ordenados como si los números fuesen carácteres, por lo que voy a transformar la variable "Sample" del dataframe de los datos clínicos a carácter, y después lo ordenaré de menor a mayor
+clinicalData$Samples <- as.character(clinicalData$Samples)
+clinicalData <- clinicalData[order(clinicalData$Samples),]
+
+# Elimino la columna del paciente 88 de la matriz "countData" 
+countData <- countData[,colnames(countData) != "88"]
+
+# Elimino la fila del paciente 88 en los datos clinicos
+clinicalData <- clinicalData[clinicalData$Samples != "88",]
+
+# Nos aseguramos de que hay el número correcto de muestras
+ncol(countData)
+nrow(clinicalData)
+
+# Mostramos
+head(countData)
+head(clinicalData)
+
+# Cargar la librería
+library("DESeq2")
+
+# Aplicar la transformación que une counts + metadados
+dds <- DESeqDataSetFromMatrix(countData = round(countData), colData = clinicalData, design = ~Grade)
+
+# Mostramos la información del objeto (es un objeto especial de DESeq2)
+dds
+```
+
+
+## Volcano plot
+
+Aplicar la fución "DESeq" del paquete DESeq2 para obtener los datos del FC y el p valor. Estos datos permitirán aplicar un filtro para obtener los *differential expressed genes* más relevantes.
+
+```{r}
+# Aplicar función "DESeq"
+dds <- DESeq(dds, betaPrior=FALSE)
+
+resultsNames(dds)
+
+res <- results(dds)
+
+head(res)
+
+saveRDS(res, "./differentialExpresionResults.RDS")
+```
+
+Posiblemente, por un problema con la versión de SALMON (según Antonio), la anotación de los IDs de los genes no permite asociarlos con el gen al cual referencian. Si se modifica la parte diferente, el problema se soluciona.
+
+```{r}
+# Por algún motivo, el ID del gen tiene una coletilla tipo: ".01". La base de datos
+# no lo reconoce, así que es necesario eliminarlo
+lTxID <- row.names(res)
+lSplitedTxID <- unlist(strsplit(lTxID, "\\."))[seq(1, 2 * length(lTxID), 2)]
+
+tTxIdToGene <- select(EnsDb.Hsapiens.v86, keys=lSplitedTxID, columns=cols, keytype="GENEID")
+
+res$genid <- lSplitedTxID
+
+write.csv(res, "./differentialExpresionResults.csv")
+```
+
+Ahora vamos a obtener una tabla que servirá para asociar el ID del gen con el nombre y símbolo del gen. 
+
+```{r}
+library(EnsDb.Hsapiens.v86)
+
+keytypes(EnsDb.Hsapiens.v86)
+
+columns(EnsDb.Hsapiens.v86)
+
+cols <- c("SYMBOL", "GENENAME")
+
+res <- readRDS("../Volcano Plot/differentialExpresionResults.RDS")
+
+head(res)
+
+# Por algún motivo, el ID del gen tiene una coletilla tipo: ".01". La base de datos
+# no lo reconoce, así que es necesario eliminarlo
+lTxID <- row.names(res)
+lSplitedTxID <- unlist(strsplit(lTxID, "\\."))[seq(1, 2 * length(lTxID), 2)]
+
+id2gene <- select(EnsDb.Hsapiens.v86, keys=lSplitedTxID, columns=cols, keytype="GENEID")
+
+head(id2gene)
+```
+
+Aplicamos el doble filtro (FC y p-valor) para obtener los genes más relevantes que se expresan de forma diferente.
+
+```{r}
+# Omitimos los registros con NAs
+resNotNans <- na.omit(res)
+
+# Parámetros
+# log2(FC) > 100
+# p-value > 5
+log2FC <- log2(100)
+pValue <- log2(0.05)
+
+# Filtro
+filtteredResults <- resNotNans[resNotNans$log2FoldChange > log2FC, ]
+filtteredResults <- filtteredResults[filtteredResults$pvalue > pValue, ]
+
+filtteredResults
+
+# Número de registros
+nrow(filtteredResults)
+
+saveRDS(filtteredResults, "./filtteredResults.RDS")
+write.csv(filtteredResults, "./filtteredResults.CSV")
+```
+
+Guardo los resultados obtenidos como un dataframe, añadiendo el nombre del gen a los resultados.
+
+```{r}
+
+genName <- lapply(rownames(filtteredResults), function(genid) {
+  splittedGenId <- strsplit(genid, "\\.")[1]
+  splittedGenId <- unlist(splittedGenId)[1]
+  return(id2gene[id2gene$GENEID == splittedGenId, ]$GENENAME)
+  # return(id2gene[id2gene$GENEID == splittedGenId, ])
+})
+genName <- unlist(genName)
+# Por algún motivo, los 4 últimos son  NOT AVAILABLE. Consultar Antonio
+genName <- append(genName, rep("NA", 4))
+
+filtteredResults
+
+# @see: "https://rdrr.io/bioc/ReportingTools/man/makeDESeqDF.html"
+dfResults <- as.data.frame(filtteredResults)
+dfResults$gen.name <- genName
+
+head(dfResults)
+
+saveRDS(dfResults, "./dfResults.RDS")
+write.csv(dfResults, "./dfResults.CSV")
+```
+
+Mostramos en forma de gráfica los resultados.
+
+```{r}
+library('EnhancedVolcano')
+
+EnhancedVolcano(res,
+    lab = rownames(res),
+    x = 'log2FoldChange',
+    y = 'pvalue')
+```
+

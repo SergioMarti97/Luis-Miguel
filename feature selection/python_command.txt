@@ -1,0 +1,1 @@
+python script_high_correlated_pairs.py "D:\Sergio\Luis Miguel repo\feature selection\feather\mCor.feather" "D:\Sergio\Luis Miguel repo\feature selection\feather\lHighVarGenes.feather" "D:\Sergio\Luis Miguel repo\feature selection\high correlated pairs th85 - without patient 88" 0.85

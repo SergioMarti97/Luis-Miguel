@@ -11,13 +11,33 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # t-SNE
 
+## Librerías necesarias
+
+Para realizar el análisis t-SNE con R es necesaria la librería "MC3" de bioconductor.
+
 ```{r}
 # Instalar dependencias
-BiocManager::install("M3C")
+if (!require("M3C", quietly = TRUE)) {
+  BiocManager::install("M3C")
+}
+```
 
+
+## Adquisición de datos
+
+```{r}
+# Adquirir datos
+df <- readRDS("../feature selection/serialized objects/dfCountData500HighestVar.RDS")
+```
+
+## Aplicar transformación
+
+```{r}
+# Análisis t-SNE
 library(M3C)
 
-tsne(dds)
+tsne(df)
 ```
+
 
 

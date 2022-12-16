@@ -77,7 +77,7 @@ rm(lNewColnames)
 library("readxl")
 
 # Leer los datos del excel
-clinicalData <- read_excel("../datos_clinicos/dfClinical.xlsx")
+clinicalData <- read_excel("../datos clinicos/dfClinical.xlsx")
 
 # Muestro los primeros datos
 head(clinicalData)
@@ -221,6 +221,69 @@ rm(ntop, intgroup, rv, select, pca,  intgroup.df)
 head(pcaData2)
 ```
 
+## PCA con más variables
+
+Por defecto, la función que realiza el PCA del paquete DESeq2 selecciona los primeros 500 genes en función de su varianza. Es decir, ordena de mayor a menor varianza las variables y selecciona las primeras 500. La poca retención de información de las componentes principales (CP) se debe en parte a que se están tomando una muestra pequeña de las variables originales (de alrededor de 37.000, solo se trabaja con 500) y porque la relación entre las variables posiblemente no sea líneal.
+
+```{r}
+# ----------- #
+# --- PCA --- #
+# ----------- #
+
+# --- Variables --- #
+# Número de genes
+ntop = 2000 
+# El fáctor
+intgroup = "Grade"
+
+# --- Extracción de PCs --- #
+rv <- rowVars(assay(vsdata))
+select <- order(rv, decreasing = TRUE)[seq_len(min(ntop, length(rv)))]
+pca <- prcomp(t(assay(vsdata)[select, ]))
+percentVar3 <- pca$sdev^2/sum(pca$sdev^2)
+
+intgroup.df <- as.data.frame(colData(vsdata)[, intgroup, drop = FALSE])
+
+# --- Dataframe con las PCs --- #
+pcaData3 <- data.frame(
+  PC1 = pca$x[, 1], 
+  PC2 = pca$x[, 2], 
+  PC3 = pca$x[, 3],
+  PC4 = pca$x[, 4], 
+  intgroup.df, 
+  name = colData(dds)[,1])
+
+# Mostramos el % de la varianza original retenida (con la varianza se estima la información)
+round(sum(percentVar3[1:4]) * 100, 2)
+
+# Eliminar variables
+rm(ntop, intgroup, rv, select, pca,  intgroup.df)
+
+# Mostramos el dataframe generando con las componentes principales 1 - 4
+head(pcaData3)
+
+# Guardamos los datos
+# write_csv(pcaData3, "./PCA_03.csv")
+
+# Cargamos la librería ggplot2
+library(ggplot2)
+library(ggrepel)
+
+# Hacemos el gráfico
+g <- ggplot(pcaData3, aes(PC1, PC2, color=Grade, label = row.names(pcaData3))) +
+  geom_point(size=3) +
+  geom_label_repel(size = 3) + 
+  xlab(paste0("PC1: ",round(percentVar3[1] * 100, 2),"% variance")) +
+  ylab(paste0("PC2: ",round(percentVar3[2] * 100, 2),"% variance")) + 
+  ggtitle("Patients by glioblastoma grade") + 
+  coord_fixed();g
+
+# Guardamos el gráfico
+ggsave("./img/PCA_03_fGrade.png", plot = g)
+
+rm(percentVar, g)
+```
+
 ## Gráfico de dipersión en 3D
 
 Se utilizará un paquete distinto a ggplot2 para realizar gráficas: plotly. Plotyl es un paquete utilizado para generar gráficos dinámicos, los cuales permiten al usuario interactuar con ellos. Para la visualización de estos datos, es una mejor opción que ggplot2.
@@ -277,6 +340,45 @@ pcaData2$fSurvival <- clinicalData$fSurvival
 ## Gráficos de dispersion según factores
 
 Utilizando los factores de los datos clínicos de los pacientes, podemos comprobar si alguno de ellos muestra un patrón.
+
+Gráficos de tres componentes principales.
+
+Fáctor hemispherio.
+
+```{r}
+# Representación de los individuos con las 3 primeras componentes principales.
+# Cargamos la librería plotly
+library(plotly)
+
+# Generamos la figura
+fig <- plot_ly(
+  pcaData2,
+  x = ~PC1,
+  y = ~PC2,
+  z = ~PC3
+) %>% add_markers(color = ~fTumorHemisphere); fig
+
+rm(fig)
+```
+Fáctor lóbulo cerebral.
+
+```{r}
+# Representación de los individuos con las 3 primeras componentes principales.
+# Cargamos la librería plotly
+library(plotly)
+
+# Generamos la figura
+fig <- plot_ly(
+  pcaData2,
+  x = ~PC1,
+  y = ~PC2,
+  z = ~PC3
+) %>% add_markers(color = ~fTumorLobule); fig
+
+rm(fig)
+```
+
+Gráficos de dos componentes principales.
 
 ```{r}
 # Extraemos el atributo del porcentaje de la varianza

@@ -1,0 +1,21 @@
+---
+title: "WGCNA"
+author: "Sergio Martí"
+date: '2022-12-15'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# WGCNA
+
+WGCNA = weighted correlation network analysis
+
+"https://horvath.genetics.ucla.edu/html/CoexpressionNetwork/Rpackages/WGCNA/"
+
+```{r}
+BiocManager::install("WGCNA")
+```
+

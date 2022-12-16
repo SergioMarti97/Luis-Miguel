@@ -17,6 +17,23 @@ Los análisis para la reducción de la dimensionalidad, se dividen en dos grupos
 
 Es recomendable aplicar algún tipo de filtro de selección, por dos motivos: reducir el número de características (features) facilita y agiliza el análisis al trabajar con un volumen de datos menor, trabajar con muchas variables puede probocar un sobreajuste o *overfitting*.
 
+
+## Generar directorios de salida
+
+Se van a generar multitud de archivos. Para una mejor organización, se van a generar diferentes directorios para guardar los archivos que se van a generar.
+
+```{r}
+# Generar directorios de salida si no existen
+
+# directorio para archivos .RDS 
+sOutputDirRDS = "serialized objects"
+dir.create(file.path(".", sOutputDirRDS), showWarnings = FALSE)
+
+# directorio para archivos .feather
+sOutputDirFeather = "feather"
+dir.create(file.path(".", sOutputDirFeather), showWarnings = FALSE)
+```
+
 ## Adquisición de datos
 
 Primero, leemos los datos con los que se va a trabajar. Se va a trabajar sobre los datos de Luis Miguel, en concreto, sobre los "counts" detectados para cada gen.
@@ -38,6 +55,16 @@ La matriz se encuentra organizada de la siguiente forma: las filas son los genes
 mTemp <- t(mCountData)
 dfCountDataT <- as.data.frame(mTemp)
 rm(mTemp)
+```
+
+## Eliminar paciente 88
+
+Por sus datos clínicos y por un error en el laboratorio, los datos del paciente 88 deben de ser descartados.
+
+```{r}
+library(tidyverse)
+
+dfCountDataT <- dfCountDataT[!(row.names(dfCountDataT) %in% row.names(dfCountDataT)[grep("^88", row.names(dfCountDataT))]),]
 ```
 
 ## Filtrar Nulos o Nan
@@ -82,7 +109,15 @@ Hay 5530 genes cuya varianza es 0 o cercana a 0 (con un error de 3 decimales). E
 lLowVarGenes <- dfVar[dfVar$var == 0, ]$gene_id
 
 # Seleccionar y guardar los genes del dataframe con varianza cercana a 0
-saveRDS(dfCountDataT[,lLowVarGenes], "./countDataLowVar.RDS")
+saveRDS(dfCountDataT[,lLowVarGenes], file.path(".", sOutputDirRDS, "dfCountDataLowVar.RDS"))
+
+# --- los 500 genes con más varianza
+dfVar <- dfVar[order(dfVar$var, decreasing = TRUE),]
+l500HighestVarGenes <-dfVar[1:500,]$gene_id
+saveRDS(dfCountDataT[,l500HighestVarGenes], file.path(".", sOutputDirRDS, "dfCountData500HighestVar.RDS"))
+saveRDS(l500HighestVarGenes, file.path(".", sOutputDirRDS, "l500HighestVarGenes.RDS"))
+feather::write_feather(as.data.frame(l500HighestVarGenes), file.path(".", sOutputDirFeather, "l500HighestVarGenes.feather"))
+write_csv(dfCountDataT[,l500HighestVarGenes], file = file.path(".", "dfCountData500HighestVar.csv"))
 
 # Eliminar del dataframe los genes con varianza cercana a 0
 library(tidyverse)
@@ -90,6 +125,11 @@ library(tidyverse)
 lHighVarGenes <- dfVar[dfVar$var > 0, ]$gene_id
 dfCountDataHighVar <- dfCountDataT %>% select(all_of(lHighVarGenes))
 dfCountDataHighVar <- as.data.frame(dfCountDataHighVar)
+
+saveRDS(dfCountDataHighVar, file.path(".", sOutputDirRDS, "dfCountDataHighVar.RDS"))
+saveRDS(lHighVarGenes, file.path(".", sOutputDirRDS, "lHighVarGenes.RDS"))
+feather::write_feather(as.data.frame(lHighVarGenes), file.path(".", sOutputDirFeather, "lHighVarGenes.feather"))
+write_csv(dfCountDataHighVar, file = file.path(".", "dfCountDataHighVar.csv"))
 
 rm(lLowVarGenes, lHighVarGenes)
 ```
@@ -159,19 +199,30 @@ La forma de ver que variables se encuentran correlacionadas, es mediante una mat
 Dado que es una matriz muy grande, se van a almacenar con números de coma flotante de precisión simple. No afecta al resultado.
 
 ```{r}
+# --------------------- #
+# ------ ATENCION ----- #
+# --- ¡NO EJECUTAR! --- #
+# --------------------- #
+
+# La matriz que se genera, es demasiado grande para estar en memoria
+# No ejecutar esta parte del código a no ser que se tenga almenos 4,6GB
+# de memoria RAM disponible
+
 # Instalar, si no lo está, la librería float
-if (!require("float", quietly = TRUE)) {
-  install.packages("float")
-}
+# if (!require("float", quietly = TRUE)) {
+#  install.packages("float")
+# }
 
 # Cargar la librería
-library(float)
+# library(float)
 
 # Aplicamos la función "cor()" para obtener la matriz de correlaciones
-mCorLight <- fl(cor(dfCountDataHighVar))
+# mCorLight <- fl(cor(dfCountDataHighVar))
 
 # La matriz generada es muy grande y pesada, guardar directamente
-saveRDS(mCorLight, "./mCorCountDataHighVarLight.RDS")
+# saveRDS(mCorLight, file.path(".", sOutputDirRDS, "mCorCountDataHighVarLight.RDS"))
 ```
 
-El siguiente problema, es que esta matriz no se puede representar gráficamente.
+No es recomendable utilizar esta matriz como una matriz de distancias para realizar un clusttering. En esta parte, no se trata de encontrar grupos de genes que se regulen de forma similiar, si no, pares de variables altamente correlacionados. [link](https://stackoverflow.com/questions/7074246/show-correlations-as-an-ordered-list-not-as-a-large-matrix)
+
+Pero, a nivel biológico puede ser interesante saber que pares de genes estan altamente correlacionados.

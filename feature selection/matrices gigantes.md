@@ -2,7 +2,7 @@
 
 ## El problema
 
-La matriz de correlación resultante al trabajar con 32.714 características tendría 1.070.205.796 elementos, que al estar codificados como valores de coma flotante de doble precision (64 bits o 8 bytes), ocupa 8,6GB en memoría (RAM). Este tamaño de la matriz vuelve inviable realizar cualquier trabajo. [link](https://stackoverflow.com/questions/1053928/very-large-matrices-using-python-and-numpy)
+La matriz de correlación resultante al trabajar con 32.714 características tendría 1.070.205.796 elementos, que al estar codificados como valores de coma flotante de doble precision (64 bits o 8 bytes), ocupa 8,6GB en memoría (RAM). Este tamaño de la matriz vuelve inviable realizar cualquier trabajo. [link](https://stackoverflow.com/questions/1053928/very-large-matrices-using-python-and-numpy) [link](https://dev.to/linuskohl/computing-the-pearson-correlation-matrix-on-huge-datasets-in-python-561)
 
 ## Optimización rápida y sencilla en R
 

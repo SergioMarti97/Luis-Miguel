@@ -1,0 +1,34 @@
+---
+title: "Add Gen Symbol"
+author: "Sergio Martí"
+date: '2022-12-14'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(EnsDb.Hsapiens.v86)
+
+keytypes(EnsDb.Hsapiens.v86)
+
+columns(EnsDb.Hsapiens.v86)
+
+cols <- c("SYMBOL", "GENENAME")
+
+res <- readRDS("../Volcano Plot/differentialExpresionResults.RDS")
+
+head(res)
+
+# Por algún motivo, el ID del gen tiene una coletilla tipo: ".01". La base de datos
+# no lo reconoce, así que es necesario eliminarlo
+lTxID <- row.names(res)
+lSplitedTxID <- unlist(strsplit(lTxID, "\\."))[seq(1, 2 * length(lTxID), 2)]
+
+id2gene <- select(EnsDb.Hsapiens.v86, keys=lSplitedTxID, columns=cols, keytype="GENEID")
+
+head(id2gene)
+```
+

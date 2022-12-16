@@ -83,7 +83,7 @@ Para indicar a tximport los archivos con los datos de la cuantificación, se ha 
 # nombre del archivo con los datos de la cuantificación
 sNameQuantFile <- "quant.sf.gz"
 # ubicación de la carpeta con el resultado de SALMON
-sPath <- "C:/Sergio/Curso 2022-23/Proyecto FISABIO/Luis Miguel/quants2"
+sPath <- "D:/Sergio/quants2" # "C:/Sergio/Curso 2022-23/Proyecto FISABIO/Luis Miguel/quants2"
 # PC ALCOY: "D:/Sergio/quants2"
 # PORTATIL: "C:/Sergio/Curso 2022-23/Proyecto FISABIO/Luis Miguel/quants2"
 
@@ -197,7 +197,7 @@ Una vez que se han generado la lista de archivos que se quieren importar y la ta
 library(tximport)
 
 # la función tximport es la encargada de hacer todo el trabajo
-txi <- tximport(lFiles, type = "salmon", tx2gene = tx2gene)
+txi <- tximport(lFiles, type = "salmon", tx2gene = tx2gene, ignoreAfterBar = T)
 
 # el objeto generado contiene 4 matrices de datos: abundace, counts, length y countsFromAbundance
 names(txi)
