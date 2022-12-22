@@ -1,0 +1,51 @@
+---
+title: "clusstering_double_filtering"
+author: "Sergio Martí"
+date: '2022-12-19'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Clusstering de los resultados del doble filtro
+
+Después de haber filtrado los transcritos mediante el doble filtro del p-valor y el *fold change*, se va a proceder a aplicar un clusttering para encontrar grupos de genes que se comporten de una manera similiar.
+
+## Adquirir datos
+
+Se van a adquirir dos tablas de datos: la matriz de datos con el experimento sumarizado (filas transcritos, columnas individuos), y la tabla con los transcritos que pasan el doble filtro.
+
+```{r}
+# Leer el objeto "dds": matriz de filas = transcritos y columnas = individuos
+dds <- readRDS("./dds.RDS")
+
+# Leer la tabla con los datos de los transcritos que superan el doble filtro
+doubleFiltering <- readRDS("./finalResults.RDS")
+
+# Mostramos los datos
+dds
+head(doubleFiltering);nrow(doubleFiltering)
+```
+
+## Seleccion de los transcritos de la matriz
+
+Ahora es necesario generar un nuevo dataframe que contenga los datos de abundancia de cada transcrito que ha pasado el filtro por cada paciente. Es decir, las filas los transcritos del doble filtro y las columnas los pacientes, y en el interior los datos de abundancia.
+
+```{r}
+
+resultsNames(dds)
+
+dds
+
+
+  
+#dds[dds$,]
+```
+
+## Matriz de distancias
+
+## Clusttering
+
+## Determinación del número de conglomerados

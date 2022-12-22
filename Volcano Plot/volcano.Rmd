@@ -5,25 +5,32 @@ output:
     df_print: paged
 ---
 
-# Differential Expressed Genes
+# Análisis de Expresión Diferencial
 
-@see: http://dputhier.github.io/jgb71e-polytech-bioinfo-app/practical/rna-seq_R/rnaseq_diff_Snf2.html
+Se han seguido los pasos para el análisis de expresión diferencial de la siguiente página: [link](http://dputhier.github.io/jgb71e-polytech-bioinfo-app/practical/rna-seq_R/rnaseq_diff_Snf2.html)
+
+Mediante las funciones del paquete de bioconductor "DESeq2" (Love, Huber y Anders 2014), se va a proceder a encontrar los genes que se expresan de forma diferente entre las muestras de los pacientes con glioblastoma de grado II y IV.
 
 ## Paquetes necesarios
 
 ```{r}
-if (!require('EnhancedVolcano', quietly = TRUE)) {
-   BiocManager::install('EnhancedVolcano')
-}
-
 # Instalar, si no está instalado, DESeq2: herramienta para el análisis transcriptómico aguas abajo
 if (!require("DESeq2", quietly = TRUE)) {
   BiocManager::install("DESeq2")
 }
 
+# Instalar, si no lo está, el paquete apeglm: reduce el efecto del tamaño en el análisis de expresión diferencial
+if (!require("apeglm", quietly = TRUE)) {
+  BiocManager::install("apeglm")
+}
+
 ```
 
 ## Adquirir datos
+
+Se adquieren los datos de la cunatificación generados con SALMON y importados con tximport. Por otro lado, también se adquieren los datos clínicos de los pacientes.
+
+Previamente, se elimina los datos del pacientes 88, ya que por un error en el procedimiento del laboratorio, no es adecuado incluirlo en el análisis.
 
 ```{r}
 # --- Datos de expresion genética ---
@@ -45,7 +52,7 @@ lNewColnames <- unlist(strsplit(colnames(countData), "_"))[seq(1, 2 * ncol(count
 colnames(countData) <- lNewColnames
 
 # Muestro los primeros datos
-head(countData)
+# head(countData)
 
 rm(lNewColnames)
 
@@ -58,7 +65,7 @@ library("readxl")
 clinicalData <- read_excel("../datos clinicos/dfClinical.xlsx")
 
 # Muestro los primeros datos
-head(clinicalData)
+# head(clinicalData)
 
 # Los datos de la matriz estan ordenados como si los números fuesen carácteres, por lo que voy a transformar la variable "Sample" del dataframe de los datos clínicos a carácter, y después lo ordenaré de menor a mayor
 clinicalData$Samples <- as.character(clinicalData$Samples)
@@ -77,7 +84,13 @@ nrow(clinicalData)
 # Mostramos
 head(countData)
 head(clinicalData)
+```
 
+## Diseño del análisis
+
+Mediante una función que facilita el paquete "DESeq2", la información de ambos dataframes (abundancia de transcritos y datos clínicos) se "sumariza" en una matriz, donde las filas son los transcritos y las columnas los pacientes. En esta función, se debe de índican en base a que fáctor se quiere realizar el estudio. En este caso, se índica que se quiere realizar el experimento en base al fáctor "Grade" (el grado del glioblastoma).
+
+```{r}
 # Cargar la librería
 library("DESeq2")
 
@@ -86,12 +99,21 @@ dds <- DESeqDataSetFromMatrix(countData = round(countData), colData = clinicalDa
 
 # Mostramos la información del objeto (es un objeto especial de DESeq2)
 dds
+
+# Aplicamos un pre-filtrado, para eliminar las filas que tienen muy pocas lecturas.
+keep <- rowSums(counts(dds)) >= 10
+dds <- dds[keep,]
+rm(keep)
+
+# Guardamos el objeto resultante, para hacer uso de él en futuros análisis
+saveRDS(dds, "./dds.RDS")
 ```
 
-
-## Diferential Expressed Genes
+## DEGs: Diferential Expressed Genes
 
 Aplicar la fución "DESeq" del paquete DESeq2 para obtener los datos del FC y el p valor. Estos datos permitirán aplicar un filtro para obtener los *differential expressed genes* o "DEGs" más relevantes.
+
+Para la visualización y clasificación de los genes, es útil la reducción del efecto del tamaño (estimaciones LFC: Log Fold Change). Para reducir este efecto, se utilizará el método apeglm (Zhu, Ibrahim, and Love 2018), el cual mejora el anterior estimador LFC.
 
 ```{r}
 library(DESeq2)
@@ -99,14 +121,23 @@ library(DESeq2)
 # Aplicar función "DESeq"
 dds <- DESeq(dds, betaPrior=FALSE)
 
+# Coefficientes del análisis de expresión diferencial
 resultsNames(dds)
 
+# La función results genera la tabla de resultados, con los cambios log2FC y p-value
 res <- results(dds)
 
-head(res)
+# Reducir el efecto del tamaño
+resLFC <- lfcShrink(dds, coef="Grade_IV_vs_II", type="apeglm")
+
+# Mostramos los resultados
+head(res);head(resLFC)
 
 saveRDS(res, "./differentialExpresionResults.RDS")
+write.csv(res, "./differentialExpresionResults.csv")
 ```
+
+## Ordenar por pvalor y pvalor ajustado 
 
 ## Doble filtro
 
@@ -123,49 +154,70 @@ log2FC <- 2
 pValue <- 0.05
 
 # Filtro
-filtteredResults <- resNotNans[abs(resNotNans$log2FoldChange) > log2FC, ]
-filtteredResults <- filtteredResults[filtteredResults$pvalue < pValue, ]
+filteredResults <- resNotNans[abs(resNotNans$log2FoldChange) > log2FC, ]
+filteredResults <- filteredResults[filteredResults$pvalue < pValue, ]
 
-filtteredResults
+filteredResults
 
 # Número de registros
-nrow(filtteredResults)
+nrow(filteredResults)
 
-saveRDS(filtteredResults, "./filtteredResults.RDS")
-write.csv(filtteredResults, "./filtteredResults.CSV")
+saveRDS(filteredResults, "./filteredResults.RDS")
+write.csv(filteredResults, "./filteredResults.CSV")
 
 # @see: "https://rdrr.io/bioc/ReportingTools/man/makeDESeqDF.html"
-dfResults <- as.data.frame(filtteredResults)
+dfResults <- as.data.frame(filteredResults)
 
 rm(resNotNans)
 ```
 
-## Añadir "gen name" y "gen change"
+## Añadir información adicional
+
+Una vez obtenida la lista de genes que se expresan de forma significativamente diferente, se puede proceder a añadir anotaciones como el símbolo del gen, o índicar que genes se expresan o se reprimen.
+
+### Anotaciones sobre los genes
+
+Para añadir las anotaciones referentes a la información de los genes se han seguido los paso de está página: [link](<https://bioinformatics-core-shared-training.github.io/cruk-summer-school-2020/RNAseq/html/05_Annotation_and_Visualisation.html>)
 
 Posiblemente, por un problema con la versión de SALMON (según Antonio), la anotación de los IDs de los genes no permite asociarlos con el gen al cual referencian. Si se modifica la parte diferente, el problema se soluciona.
 
-Ahora vamos a obtener una tabla que servirá para asociar el ID del gen con el nombre y símbolo del gen. 
+Ahora vamos a obtener una tabla de anotaciones que servirá para asociar el ID del gen con el nombre y símbolo del gen.
 
 ```{r}
 library(EnsDb.Hsapiens.v86)
 
+columns(EnsDb.Hsapiens.v86)
 keytypes(EnsDb.Hsapiens.v86)
 
-columns(EnsDb.Hsapiens.v86)
-
-cols <- c("SYMBOL", "GENENAME")
+cols <- c("GENEID", "SYMBOL", "GENENAME", "ENTREZID")
 
 # Por algún motivo, el ID del gen tiene una coletilla tipo: ".01". La base de datos
 # no lo reconoce, así que es necesario eliminarlo
 lTxID <- row.names(res)
 lSplittedTxID <- unlist(strsplit(lTxID, "\\."))[seq(1, 2 * length(lTxID), 2)]
 
-id2gene <- select(EnsDb.Hsapiens.v86, keys=lSplittedTxID, columns=cols, keytype="GENEID")
+id2gene <- AnnotationDbi::select(
+  EnsDb.Hsapiens.v86, 
+  keys=lSplittedTxID,
+  columns = cols,
+  keytype = "GENEID")
 
+# Explorar los datos de id2gene
+library(tidyverse)
+
+head(id2gene)
+
+length(unique(id2gene$ENTREZID))
+
+dim(id2gene);length(lSplittedTxID)
+
+id2gene %>% dplyr::add_count(GENEID) %>% dplyr::filter(n > 1)
+
+# Eliminar estas variables porque ya no son necesarias
 rm(lTxID, lSplittedTxID)
 ```
 
-Añado el nombre del gen a los resultados.
+Añado el nombre del gen a los resultados. Aquí se pueden contabilizar los transcritos que no están asociados a ningún gen por ahora.
 
 ```{r}
 # Creo una función, porque volveré a utilizarla posteriormente
@@ -175,36 +227,45 @@ ObtainGenNames <- function(lGenIDs, id2gene) {
       splittedGenId <- strsplit(genid, "\\.")[1]
       splittedGenId <- unlist(splittedGenId)[1]
       name <- id2gene[id2gene$GENEID == splittedGenId,]$GENENAME
-      if (length(name) != 0) {
-        return(name)
-      } else {
-        return("Not Available")
-      }
     }))
   return(genName)
 }
 
-genName <- ObtainGenNames(rownames(filtteredResults), id2gene = id2gene)
+# @see: https://stackoverflow.com/questions/8996134/extract-vectors-from-strsplit-list-without-using-a-loop
+lIdCols <- unlist(strsplit(rownames(dfResults), "\\."))[2*(1:length(rownames(dfResults)))-1]
+
+nrow(id2gene)
+
+id2gene[id2gene$GENEID == head(lIdCols),]
+
+genName <- ObtainGenNames(rownames(dfResults), id2gene = id2gene)
+
+
+length(rownames(dfResults))
+length(unique(rownames(dfResults)))
+
+length(genName)
+length(unique(genName))
+length(genName) - length(unique(genName))
+
+temp <- as.data.frame(table(genName))
+temp <- temp[order(temp$Freq),]
+
+dfResults
 
 # Número de transcritos que no estan asociados a ningún gen...
 length(genName[genName == "Not Available"])
 
 dfResults$`gen name` <- genName
 
-rm(filtteredResults)
+rm(filteredResults)
 ```
+
+### Indicar sobreexpresados y reprimidos
 
 Para facilitar la comprensión de los resultados, se va a generar una nueva columna en el dataframe de los resultados para indicar si se reprime o se sobreexpresa el transcrito en concreto.
 
 ```{r}
-# Contabilizar el número de genes sobreexpresados y reprimidos
-# Sobreexpresados
-nrow(dfResults[dfResults$log2FoldChange > 0,])
-# Reprimidos
-nrow(dfResults[dfResults$log2FoldChange < 0,])
-# No cambian
-nrow(dfResults[dfResults$log2FoldChange == 0,])
-
 # También se guarda esta función porque se va utilizar más adelante
 ObtainChange <- function(lLog2FC) {
   # Aquí guardo unas variables por si se quiere cambiar el texto de la variable "change".
@@ -235,35 +296,59 @@ Guardamos el dataframe generado con los resultados.
 
 ```{r}
 # Guardar como un objeto serializado y como un csv
-saveRDS(dfResults, "./dfResults.RDS")
-write.csv(dfResults, "./dfResults.CSV")
+saveRDS(dfResults, "./finalResults.RDS")
+write.csv(dfResults, "./finalResults.CSV")
 ```
+
+### Contabilizar genes sobreexpresados y reprimidos
+
+En este apartado se contabilizan el número de genes que se sobreexpresan o se reprimen de forma más significativa. Es decir, los que pasan el filtro del p-valor y el *Fold Change*.
+
+```{r}
+# Contabilizar el número de genes sobreexpresados y reprimidos
+# Sobreexpresados
+nrow(dfResults[dfResults$log2FoldChange > 0,])
+# Reprimidos
+nrow(dfResults[dfResults$log2FoldChange < 0,])
+```
+
+## Parcelas MA/Gráfico MA
+
+```{r}
+# Utilizar la función de DESeq2
+DESeq2::plotMA(res, alpha=0.05)
+```
+
+```{r}
+dfRes <- as.data.frame(res)
+
+head(dfRes)
+
+# Utilizar la función de ggplot2
+plotMA <- ggplot2::ggplot(as.data.frame(res), aes(x = log2(baseMean), y = log2FoldChange)) + 
+  geom_point(aes(colour = pvalue < 0.05), shape = 20, size = 0.5) +
+  ggtitle("plotMA") + 
+  labs(x = "mean of normalised counts", y = "log fold change")
+
+plotMA
+
+plotly::ggplotly(plotMA)
+```
+
 
 ## Volcano plot
 
 Mostramos en forma de gráfica los resultados.
 
 ```{r}
-# Usando una función por defecto
-library('EnhancedVolcano')
-
-EnhancedVolcano(res,
-    lab = rownames(res),
-    x = 'log2FoldChange',
-    y = 'pvalue')
-```
-El gráfico de Volcano plot utilizando la función "EnhancedVolcano" no funciona como debería. Se va a proceder a crear el mismo gráfico con ggplot2.
-
-```{r}
 # Representando la misma gráfica pero ggplot2
 library(ggplot2)
-library(ggrepel)
 
 # Para mostrar todos los puntos del volcano plot, es necesario construir un
 # dataframe con toda la información
 
 # Genero un nuevo dataframe a partir del resultado de DESeq
-dfToPlot <- as.data.frame(res)
+dfToPlot <- as.data.frame(resLFC)
 # Añadir el nombre del gen
 dfToPlot$`gen name` <- ObtainGenNames(rownames(res), id2gene = id2gene)
 # Añadir el "change"
@@ -287,13 +372,25 @@ lChange <- unlist(lapply(1:nrow(dfToPlot), function(iRow) {
 }))
 dfToPlot$change <- lChange
 
+# Parámetros de la gráfica
+dLineWidth = 0.5
+
 # Graficar
-ggplot(dfToPlot, aes(x = log2FoldChange, y = -log10(pvalue), color = change)) + 
-  geom_point()
+volcano <- ggplot(dfToPlot, aes(x = log2FoldChange, y = -log10(pvalue), color = change, text = paste0("gene: ", `gen name`, " codigo: ", rownames(dfToPlot)))) + 
+  geom_point() + 
+  scale_color_manual(
+    breaks = c("not available", "no change", "log2FC", "p-value", "log2FC and p-value"), 
+    values=c("dark gray", "grey", "#F8766D", "#619CFF", "#E76BF3")) +
+  geom_hline(yintercept=-log10(pValue), linetype="dashed", color = "black", linewidth = dLineWidth) +
+  geom_vline(xintercept=-log2FC, linetype="dashed", color = "black", linewidth = dLineWidth) +
+  geom_vline(xintercept=log2FC, linetype="dashed", color = "black", linewidth = dLineWidth) +
+  ggtitle("Volcano plot")
 
-rm(dfToPlot)
+# Mostramos el gráfico
+volcano
+
+# Mostramos el gráfico con plotly para poder ver cada punto con que gen corresponde
+plotly::ggplotly(volcano)
+
+rm(dfToPlot, volcano)
 ```
-
-
-
-

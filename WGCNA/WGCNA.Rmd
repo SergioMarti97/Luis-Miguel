@@ -15,7 +15,229 @@ WGCNA = weighted correlation network analysis
 
 "https://horvath.genetics.ucla.edu/html/CoexpressionNetwork/Rpackages/WGCNA/"
 
+## Instalar librerías
+
+### Prerequisitos
+
+El paquete WGCNA requiere la instalación de los siguientes paquetes: stats, grDevices, utils, matrixStats (0.8.1 o superior), Hmisc, splines, foreach, doParallel, fastcluster, dynamicTreeCut, survival, paralelo, preprocessCore, GO.db, imputar, y Anotación Dbi
+
 ```{r}
-BiocManager::install("WGCNA")
+#install.packages(c("matrixStats", "Hmisc", "splines", "foreach", "doParallel", "fastcluster", "dynamicTreeCut", "survival", "BiocManager"))
+                 
+#BiocManager::install(c("GO.db", "preprocessCore", "impute"))
+```
+Si planea usar capacidades de anotación (como GOenrichmentAnalysis), también recomendamos instalar paquetes de anotación de Bioconductor.
+
+```{r}
+#orgCodes = c("Hs", "Mm", "Rn", "Pf", "Sc", "Dm", "Bt", "Ce", "Cf", "Dr", "Gg");
+#orgExtensions = c(rep(".eg", 4), ".sgd", rep(".eg", 6));
+#packageNames = paste("org.", orgCodes, orgExtensions, ".db", sep="");
+
+#BiocManager::install(c("GO.db", "KEGG.db", "topGO", packageNames, "hgu133a.db", "hgu95av2.db", "annotate", "hgu133plus2.db", "SNPlocs.Hsapiens.dbSNP.20100427", "minet", "OrderedList"))
+```
+
+
+```{r}
+#BiocManager::install("WGCNA")
+```
+
+## Preliminares
+
+Antes de realizar el análisis, se asegura el directorio de trabajo y de linkar todas las funciones y variables del paquete WGCNA al entorno.
+
+```{r}
+# Directorio de trabajo
+getwd()
+
+# Si no es correcto, cambiar el directorio de trabajo con esta instrucción:
+# workingDir = "."
+# setwd(workingDir); rm(workingDir)
+
+# Cargar el paquete de WGCNA
+library(WGCNA)
+
+# Esta línea es importante para el análisis, no omitir:
+options(stringsAsFactors = FALSE)
+
+# El paquete WGCNA permite lanzar trabajo en varios hilos de ejecución. Aunque es una forma de completar un trabajo antes, RStudio da problemas con esta parte. Omitir
+# enableWGCNAThreads()
+```
+
+## Cargar los datos
+
+Se van a cargar los datos de expresión genética y la lista de genes que han superado el filtro del Fold Change y p-valor después del análisis de expresión diferencial. El primer dataframe se encuentra en forma de objeto serializado y la lista se encuentran en un excel.
+
+```{r}
+# Objeto con la información de los counts y los pacientes
+
+# El objeto que contiene toda la información esta guardado como .RDS
+txi <- readRDS("../import quant/txi.RDS")
+# Trabajaremos con los counts
+countData <- txi$counts
+
+# No vamos a trabajar más con txi, así que como ocupa 35MB, lo elimino de la memoria
+rm(txi)
+
+# La matriz tiene, en los nombres de las muetras, un sufijo después de una barra baja, que es el "sample ID" que se utilizó para secuenciarlo en illumina. Para que no de problemas, se van a renombrar
+
+# Elimino el sufijo "_Sxx" de los nombres de las columnas
+lNewColnames <- unlist(strsplit(colnames(countData), "_"))[seq(1, 2 * ncol(countData), 2)]
+
+# Asigno los nuevos nombres de las columnas a la matriz
+colnames(countData) <- lNewColnames
+
+# Muestro los primeros datos
+# head(countData)
+
+rm(lNewColnames)
+
+# Mostramos los datos de expresión
+dim(countData);head(countData)
+
+# ---------------------------
+
+# Datos clínicos
+# Leer los datos del excel
+clinicalData <- readxl::read_excel("../datos clinicos/dfClinical.xlsx")
+
+# Muestro los primeros datos
+# head(clinicalData)
+
+# Los datos de la matriz estan ordenados como si los números fuesen carácteres, por lo que voy a transformar la variable "Sample" del dataframe de los datos clínicos a carácter, y después lo ordenaré de menor a mayor
+clinicalData$Samples <- as.character(clinicalData$Samples)
+clinicalData <- clinicalData[order(clinicalData$Samples),]
+
+# Elimino la columna del paciente 88 de la matriz "countData" 
+countData <- countData[,colnames(countData) != "88"]
+
+# Elimino la fila del paciente 88 en los datos clinicos
+clinicalData <- clinicalData[clinicalData$Samples != "88",]
+
+# ---------------------------
+
+# Hoja de excel con los genes resultantes del análisis de expresión diferencial
+# passedGenes <-  
+dfPassedGenes <- readxl::read_excel("../Volcano Plot/DEGs.xlsx", sheet = "log2FC > 2")
+
+# Mostramos los datos de la lista de genes
+dim(dfPassedGenes);head(dfPassedGenes)
+```
+
+Ahora se van a seleccionar los datos de expresión de la lista de genes. Estos datos se van a guardar en forma de matriz. Para que la función "pickSoftThreshold" funcione correctamente, la matriz de debe de organizar de forma que las filas correspondan con las muestras y las columnas con los genes.
+
+```{r}
+# Obtenemos los genes que han pasado filtro, en forma de lista
+lGenes <- dfPassedGenes[,1]
+lGenes <- unlist(lGenes)
+
+# Seleccionamos la lista de genes que pasan el filtro
+mExpressionData <- countData[lGenes,]
+
+# Cambiamos filas por columnas
+mExpressionData <- t(mExpressionData)
+
+# Mostramos la matriz
+head(mExpressionData[c(1:3), c(1:3)])
+
+# Eliminamos los objetos que ya no se van a utilizar
+rm(lGenes, countData)
+```
+
+## Construcción automática de redes y identificación de modulos
+
+Este paso es la base para los análisis con WGCNA.
+
+### Construcción automática de la red y detección de módulos
+
+```{r}
+powers = c(c(1:10), seq(form = 12, to = 21, by = 2))
+
+sft = pickSoftThreshold(mExpressionData, powerVector = powers, verbose = 5)
+
+dfToPlot <- data.frame(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2], powers)
+colnames(dfToPlot) <- c("fitIndices", "sign", "powers")
+
+ggplot2::ggplot(dfToPlot, ggplot2::aes(x = fitIndices, y = sign, label = powers)) + 
+  ggplot2::geom_point() + 
+  ggplot2::geom_text(hjust = 1, vjust = -1) + 
+  ggplot2::xlab("Soft Threshold (power)") + 
+  ggplot2::ylab("Scale Free Topology Model Fit, signed R^2") + 
+  ggplot2::ggtitle("Scale independece") + 
+  ggplot2::geom_hline(yintercept = 0.90, col = "red")
+
+dfToPlot <- data.frame(sft$fitIndices[,1], sft$fitIndices[,5], powers)
+colnames(dfToPlot) <- c("fitIndices", "connectivity", "powers")
+
+ggplot2::ggplot(dfToPlot, ggplot2::aes(x = fitIndices, y = connectivity, label = powers)) + 
+  ggplot2::geom_point() + 
+  ggplot2::geom_text(hjust = 1, vjust = -1) + 
+  ggplot2::xlab("Soft Threshold (power)") + 
+  ggplot2::ylab("Mean Connectivity") + 
+  ggplot2::ggtitle("Mean Connectivity")
+
+rm(dfToPlot)
+```
+
+## Construcción en un paso y detección de modulos
+
+```{r}
+net <- blockwiseModules(mExpressionData, power = 6, TOMType = "unsigned", minModuleSize = 30, reassignThreshold = 0, mergeCutHeight = 0.25, numericLabels = TRUE, pamRespectsDendro = FALSE, saveTOMs = TRUE, saveTOMFileBase = "network1", verbose = 3)
+```
+
+Una vez se ha construido la red, se va a proceder a representar gráficamente el dendograma resultante.
+
+```{r}
+# Dendograma
+mergedColors = labels2colors(net$colors)
+
+plotDendroAndColors(net$dendrograms[[1]], mergedColors[net$blockGenes[[1]]], "Module colors", dendroLabels = FALSE, hang = 0.03, addGuide = TRUE, guideHang = 0.05)
+```
+
+Ahora se intentará guardar estos grupos
+
+```{r}
+moduleLabels <- net$colors
+
+moduleColors <- labels2colors(net$colors)
+
+MEs <- net$MEs
+
+geneTree <- net$dendrograms[[1]]
+
+
+typeof(moduleLabels);head(moduleLabels)
+typeof(moduleColors);head(moduleColors)
+typeof(MEs);#head(MEs)
+typeof(geneTree);#head(geneTree)
+
+# Guardar los objetos
+saveRDS(moduleLabels, "moduleLabels.RDS")
+saveRDS(moduleColors, "moduleColors.RDS")
+saveRDS(MEs, "MEs.RDS")
+saveRDS(geneTree, "geneTree.RDS")
+```
+
+## Relacionar modulos con rasgos clínicos externos
+
+```{r}
+MEs0 <- moduleEigengenes(mExpressionData, moduleColors)$eigengenes
+
+MEs <- orderMEs(MEs0)
+
+head(MEs)
+
+moduleTraitCor <- WGCNA::cor(MEs, clinicalData, use = "p")
+
+moduleTraitPvalue <- corPvalueStudent(moduleTraitCor, nrow(mExpressionData))
+```
+
+Representación gráfica
+
+```{r}
+textMatrix = paste0(signif(moduleTraitCor, 2), "\n(", signif(moduleTraitPvalue, 1), ")")
+
+dim(textMatrix) = dim(moduleTraitCor)
+
+labeledHeatmap(Matrix = moduleTraitCor, xLabels = names(clinicalData), yLabels = names(MEs), ySymbols = names(MEs), colorLabels = FALSE, colors = greenWhiteRed(50), textMatrix = textMatrix, setStdMargins = FALSE, cex.text = 0.25, zlim = c(-1, 1), main = "Module-trait relationships")
 ```
 
