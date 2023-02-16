@@ -13,14 +13,24 @@ knitr::opts_chunk$set(echo = TRUE)
 
 Aquí vamos a importar los datos clínicos de los pacientes, facilitados por Luis Miguel. Se pretende usar estos datos clínicos como factores para comprobar si hay una relación de causalidad entre ellos y el desarrollo de un glioblastoma
 
-Los datos se encuentran en un excel
+Los datos se encuentran en un excel.
+
+Se van a eliminar los datos del paciente 88. Aunque no haya ningún problema con sus datos clínicos, los datos de expresión genética no se pueden analizar con los demás miembros devido a un error en el laboratorio.
 
 ```{r importar datos, warning=FALSE}
 # Usamos la librería openxlsx para leer los datos clínicos de los pacientes del excel
 library(openxlsx)
 
 # Leemos el excel y lo guardamos como un dataframe
-dfClinical <- openxlsx::read.xlsx("C:/Sergio/Curso 2022-23/Proyecto FISABIO/Luis Miguel/DATOS CLÍNICOS asociados a RNA-seq.xlsx", "Hoja1")
+# dfClinical <- openxlsx::read.xlsx("C:/Sergio/Curso 2022-23/Proyecto FISABIO/Luis Miguel/DATOS CLÍNICOS asociados a RNA-seq.xlsx", "Hoja1")
+dfClinical <- openxlsx::read.xlsx("../DATOS CLÍNICOS asociados a RNA-seq.xlsx", "Hoja1")
+
+# Los datos de la matriz estan ordenados como si los números fuesen carácteres, por lo que voy a transformar la variable "Sample" del dataframe de los datos clínicos a carácter, y después lo ordenaré de menor a mayor
+dfClinical$Samples <- as.character(dfClinical$Samples)
+dfClinical <- dfClinical[order(dfClinical$Samples),]
+
+# Elimino la fila del paciente 88 en los datos clinicos
+dfClinical <- dfClinical[dfClinical$Samples != "88",]
 
 # Mostramos el dataframe en Rstudio
 # View(dfClinical)
@@ -310,7 +320,7 @@ dfClinical$fSurvival <- dfSurvival$cluster
 # Asignamos los pacientes con N.D.
 dfClinical[dfClinical$Survival == "N.D.",]$fSurvival = NULL
 
-rm(lLog10ReplacedSurvival, hc, hcplot, t1, g1)
+# rm(lLog10ReplacedSurvival, hc, hcplot, t1, g1)
 ```
 
 ## Grado del glioblastoma
@@ -398,21 +408,23 @@ t1 <- tableGrob(t1)
 gQQ1 <- ggplot(dfClinical[dfClinical$Survival != "N.D." & dfClinical$fGender == "M",], aes(sample = log10(as.numeric(Survival)))) + 
   stat_qq() + 
   stat_qq_line() +
-  theme(axis.title =element_text(size = 9)) +
-  ylab("QQplot log10(Weeks) Male")
+  theme(axis.title =element_text(size = 9), plot.title = element_text(size = 9)) +
+  ylab("log10(Weeks)") +
+  ggtitle("QQplot Male")
 
 gQQ2 <- ggplot(dfClinical[dfClinical$Survival != "N.D." & dfClinical$fGender == "F",], aes(sample = log10(as.numeric(Survival)))) + 
   stat_qq() + 
   stat_qq_line() +
-  theme(axis.title = element_text(size = 9)) +
-  ylab("QQplot log10(Weeks) Female")
+  theme(axis.title = element_text(size = 9), plot.title = element_text(size = 9)) +
+  ylab("log10(Weeks)") + 
+  ggtitle("QQplot Female")
 
 # Gráfico final
 grid.arrange(gQQ1, gQQ2, t1, g1, 
              widths = c(1, 1, 2), 
              layout_matrix = rbind(c(1, 2, 4), c(3, 3, 4)))
 
-rm(male, female, g1, t1, gQQ1, gQQ2)
+#rm(male, female, g1, t1, gQQ1, gQQ2)
 ```
 
 No, no hay diferencias signficativas en la supervivencia según el género paciente.
@@ -470,21 +482,23 @@ t1 <- tableGrob(t1)
 gQQ1 <- ggplot(dfClinical[dfClinical$Survival != "N.D." & dfClinical$fTumorHemisphere == "left",], aes(sample = log10(as.numeric(Survival)))) + 
   stat_qq() + 
   stat_qq_line() +
-  theme(axis.title =element_text(size = 9)) +
-  ylab("QQplot log10(Weeks) left hemisphere")
+  theme(axis.title =element_text(size = 9), plot.title = element_text(size=9)) +
+  ylab("log10(Weeks)") + 
+  ggtitle("QQplot left hemisphere")
 
 gQQ2 <- ggplot(dfClinical[dfClinical$Survival != "N.D." & dfClinical$fTumorHemisphere == "right",], aes(sample = log10(as.numeric(Survival)))) + 
   stat_qq() + 
   stat_qq_line() +
-  theme(axis.title = element_text(size = 9)) +
-  ylab("QQplot log10(Weeks) right hemisphere")
+  theme(axis.title = element_text(size = 9), plot.title = element_text(size=9)) +
+  ylab("log10(Weeks)") + 
+  ggtitle("QQplot right hemisphere")
 
 # Gráfico final
 grid.arrange(gQQ1, gQQ2, t1, g1, 
              widths = c(1, 1, 2), 
              layout_matrix = rbind(c(1, 2, 4), c(3, 3, 4)))
 
-rm(left, right, g1, t1, gQQ1, gQQ2)
+# rm(left, right, g1, t1, gQQ1, gQQ2)
 ```
 
 No, no hay diferencias significativas en la supervivencia si comparamos los pacientes con tumor cerebral en el hemisferio izquierdo o derecho.
@@ -534,7 +548,7 @@ g1 <- ggplot(df,
   stat_summary(fun="mean", color="black", shape=15) +
   scale_fill_brewer(palette="RdYlGn") +
   ggtitle("Survival by lobule") + 
-  ylab("Survival (weeks)") +
+  ylab("Survival (log10(weeks))") +
   xlab("Lobule")
 
 # (3) QQplots

@@ -1,0 +1,117 @@
+---
+title: "Functional Analysis with DAVID"
+author: "Sergio Martí"
+date: '2022-01-09'
+output: html_document
+---
+
+## topGo
+
+El paquete topGO, pasos lógicos de la pipeline.
+
+1) Construcción de una matriz con las variables:
+
+| ID_gen | ID_GO | Descripción_término_GO | 
+
+Ingresar una lista de ID de uniprot en uniprotkb y recuperar las anotaciones GO para cada gen en su lista/archivo
+
+2) Filtrar la lista para los genes que fueron capturados en su análisis de expresión diferencial aunque no se expresen diferencialmente. 
+Este filtro está definido por DESeq/Sleuth por "al menos 4 recuentos de lectura en al menos el 49% de las bibliotecas"
+
+3) Definir esta lista de genes como "gene_universe"
+
+4) Definir su conjunto de genes y obtenga los genes_ID y, si es posible, también una puntuación clasificada (p-val/FDR) de los genes que le interesan
+
+5) Plotear los gráficos y obtener las tablas de términos GO enriquecidos (estos se clasificarían por p valor sin necesidad de realizar un análisis de corrección)
+
+Nota: necesitará algunas funciones de manipulación de datos; Leería la documentación de "tidyverse"
+
+link: "https://www.semanticscholar.org/paper/Gene-set-enrichment-analysis-with-topGO-Alexa/fed15cfce04639d1cf6e65280c01afbb4fb79491"
+
+## Instalar topGO
+
+```{r}
+# Instalar topGO
+if (!require("topGO")) {
+  BiocManager::install("topGO")
+}
+
+if (!require("org.At.tair.db")) {
+  BiocManager::install("org.At.tair.db")
+}
+
+if (!require("KEGGREST")) {
+  BiocManager::install("KEGGREST")
+}
+```
+
+```{r}
+# Instalar paquete "ALL" = Acute Lymphoblastic Leukemia
+if (!require("ALL")) {
+  BiocManager::install("ALL")
+}
+library("ALL")
+data("ALL")
+
+affyLib <- paste(annotation(ALL), "db", sep = ".")
+library(package = affyLib, character.only = TRUE)
+
+sum(topDiffGenes(geneList))
+
+```
+
+## Importar datos
+
+```{r}
+## Importar los datos
+dfPvalue <- read_excel("../Volcano Plot/DEGs.xlsx", sheet = "log2FC > 2")
+
+dfGOTerms <- read_excel("../Volcano Plot/DEGs.xlsx", sheet = "Functional Analysis log2FC > 2")
+
+head(dfPvalue)
+head(dfGOTerms)
+
+nrow(dfPvalue)
+nrow(dfGOTerms)
+
+# Primera parte (solo p-value) para pasar directamente a topGO
+lGenesPvalue <- dfPvalue$pvalue
+names(lGenesPvalue) <- dfPvalue$`gen name`
+
+# Segunda parte, para obtener las ontologias de DAVID
+lGOids <- dfGOTerms[,c("ID", "GOTERM_BP_DIRECT")]
+lpValues <- dfPvalue[dfPvalue$`gen name` %in% lGOids$ID, c("gen name","pvalue")]
+
+strsplit(lGOids$GOTERM_BP_DIRECT,",")
+
+
+
+head(lpValues$`gen name`)
+head(lGOids$ID)
+
+nrow(lpValues)
+nrow(lGOids)
+```
+
+
+## Construcción del objeto GOData
+
+La base de datos utilizada es: org.At.tair.db, de Bioconductor.
+
+```{r}
+sampleGOdata <- new("topGOdata", description = "Simple session", ontology = "BP", allGenes = geneList, geneSel = topDiffGenes, nodeSize = 10, annot = annFUN.db, affyLib = affyLib)
+
+library(topGO)
+library(org.At.tair.db)
+
+GOdata <- new("topGOdata",
+    ontology = "BP",
+    allGenes = lGenesPvalue,
+    annot = annFUN.org, 
+    mapping = lGOids$GOTERM_BP_DIRECT)
+
+```
+```{r}
+
+```
+

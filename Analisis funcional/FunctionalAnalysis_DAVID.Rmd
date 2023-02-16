@@ -1,0 +1,76 @@
+---
+title: "Functional Analysis with DAVID"
+author: "Sergio Martí"
+date: '2022-01-09'
+output: html_document
+---
+
+# DAVID
+
+Página consultada: 
+https://www.r-bloggers.com/2015/03/david-functional-analysis-with-clusterprofiler/
+
+
+## Cargar lista de genes
+
+Cargar la lista de genes obtenida de los procesos anteriores.
+
+```{r}
+
+# Hoja de excel con los genes resultantes del análisis de expresión diferencial
+# passedGenes <-  
+dfPassedGenes <- readxl::read_excel("../Volcano Plot/DEGs.xlsx", sheet = "log2FC > 2")
+
+head(dfPassedGenes)
+
+# Obtenemos los genes que han pasado filtro, en forma de lista
+lGenes <- dfPassedGenes[,1]
+lGenes <- unlist(lGenes)
+
+head(lGenes)
+```
+
+## Analisis de enriquecimiento funcional con DAVID
+
+Es necesario instalar el paquete "clusterProfiler". Este paquete se encuentra en esta fuente de GitHub: "https://github.com/YuLab-SMU/clusterProfiler". 
+
+Instalamos el paquete desde GitHub:
+
+```{r}
+# Es necesaria la librería devtools para instalar un repositorio de GitHub
+
+# --- Ejecutar una sola vez, para instalar
+#if (!require("devtools")) {
+#  install.packages("devtools")
+#}
+
+library("devtools")
+
+install_github("YuLab-SMU/clusterProfiler")
+
+BiocManager::install("clusterProfiler")
+
+# A parte, es necesario instalar un paquete para el funcionamiento de DAVID desde R: "RDAVIDWebService"
+# La versión de Bioconductor que estoy utilizando ya no tiene este paquete
+# La opción más sencilla en este caso ha sido descargar el binary para windows en el ordenador y instalarlo directamente
+install.packages("D:/Sergio/RDAVIDWebService_1.28.0.zip", repos = NULL, type = "win.binary")
+
+# A su vez, depende de otro paquete llamado GOstats
+BiocManager::install("GOstats")
+library("GOstats")
+
+# También depende de un paquete llamado "rJava"
+library("rJava")
+# El paquete da un error porque no es capaz de determinar la variable de entorno JAVA_HOME
+Sys.setenv(JAVA_HOME="")
+
+library("RDAVIDWebService")
+```
+
+
+```{r}
+
+david = clusterProfiler::enrichDAVID(gene = gene, idType="ENTREZ_GENE_ID", annotation="KEGG_PATHWAY")
+# listType="Gene",
+```
+

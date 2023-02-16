@@ -24,6 +24,17 @@ if (!require("apeglm", quietly = TRUE)) {
   BiocManager::install("apeglm")
 }
 
+if (!require("pheatmap")) {
+  BiocManager::install("pheatmap")
+}
+
+if (!require("vsn")) {
+  BiocManager::install("vsn")
+}
+
+library("DESeq2")
+library("pheatmap")
+library("vsn")
 ```
 
 ## Adquirir datos
@@ -333,6 +344,60 @@ plotMA <- ggplot2::ggplot(as.data.frame(res), aes(x = log2(baseMean), y = log2Fo
 plotMA
 
 plotly::ggplotly(plotMA)
+```
+
+## Transformación de datos
+
+```{r}
+ntd <- normTransform(dds)
+vsd <- vst(dds, blind=FALSE)
+rld <- rlog(dds, blind=FALSE)
+```
+
+```{r}
+meanSdPlot(assay(ntd))
+meanSdPlot(assay(vsd))
+meanSdPlot(assay(rld))
+```
+
+
+## Mapa de calor de la matriz de conteo
+
+```{r}
+select <- order(rowMeans(counts(dds,normalized=TRUE)), decreasing=TRUE)[1:20]
+
+df <- as.data.frame(colData(dds)[,c("Grade","fSurvival")])
+
+pheatmap(assay(ntd)[select,], cluster_rows=FALSE, show_rownames=FALSE,
+         cluster_cols=FALSE, annotation_col=df)
+
+pheatmap(assay(vsd)[select,], cluster_rows=FALSE, show_rownames=FALSE,
+         cluster_cols=FALSE, annotation_col=df)
+
+pheatmap(assay(rld)[select,], cluster_rows=FALSE, show_rownames=FALSE,
+         cluster_cols=FALSE, annotation_col=df)
+```
+
+## Mapa de calor de las distancias de muestra a muestra
+
+```{r}
+sampleDists <- dist(t(assay(vsd)))
+
+library("RColorBrewer")
+sampleDistMatrix <- as.matrix(sampleDists)
+rownames(sampleDistMatrix) <- paste(vsd$Grade, vsd$fSurvival, sep="-")
+colnames(sampleDistMatrix) <- NULL
+colors <- colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+pheatmap(sampleDistMatrix,
+         clustering_distance_rows=sampleDists,
+         clustering_distance_cols=sampleDists,
+         col=colors)
+```
+
+## PCA
+
+```{r}
+plotPCA(vsd, intgroup=c("Grade", "fSurvival"))
 ```
 
 

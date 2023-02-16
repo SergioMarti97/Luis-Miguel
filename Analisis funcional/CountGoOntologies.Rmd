@@ -1,0 +1,112 @@
+---
+title: "Functional Analysis with DAVID"
+author: "Sergio Martí"
+date: '2022-01-16'
+output: html_document
+---
+
+# Contar Ontologias
+
+## Introducción y objetivo del análisis.
+
+Una vez se ha hecho la anotación funcional de los genes que se expresan de forma diferencial entre las muestras de glioblastoma de grado II y IV, se va a proceder a realizar un análisis de estas ontologias. De esta forma, se puede comprobar que funciones se están viendo desreguladas.
+Posteriormente, una vez identificadas las funciones que se ven desreguladas por el factor del grado del glioblastoma, se puede proceder a identificar que genes son los más relevantes dentro de estos procesos.
+
+## Conteo
+
+No nos importa que genes tiene "X" función, en realidad, cuantas funciones biológicas distintas tenemos con los genes diferencialmente expresados, y estas funciones biológicas cuantos genes tienen. 
+
+### Cargar los datos
+
+```{r}
+# Librería para cargar los datos desde excel
+library(openxlsx)
+
+# Leemos los datos y se guardan como un dataframe
+degs <- openxlsx::read.xlsx("../Volcano Plot/DEGs.xlsx", sheet = "Functional Analysis log2FC > 2")
+```
+
+Los datos se encuentran estructurados de la siguiente manera:
+
+| Nombre gen abreviado | Nombre gen completo | Función Bilógica |
+
+La función biológica a su vez es una lista separada con ",". Está estructurada de la siguiente forma:
+
+| "Código:GO"~"Nombre de la función biológica" | 
+
+Un gen puede estar implicado en múltiples funciones biológicas.
+
+```{r}
+# Extramos la gen Ontology
+gos <- degs$GOTERM_BP_DIRECT
+
+# Generamos una expresion regex para evitar separar las comas de las descripciones de las funciones biológicas
+regexToSplit <- ",GO:" # ",GO:[0-9]{7}~" 
+
+# Separamos la lista
+gos <- strsplit(gos, ",GO:")
+
+# Al separar la lista, se eliminan los "GO:" de algunas ontologías
+# Se pueden añadir manualmente
+# A parte, se eliminan las comas finales
+gos <- lapply(gos, function(sublist) {
+  l <- paste0("GO:", sublist[2:length(sublist)])
+  l <- sub(",$", "", l)
+  return(l)
+})
+
+# Mostramos la lista
+head(gos)
+
+# Contamos funciones biológicas diferentes
+count <- unlist(gos)
+count <- as.data.frame(table(count))
+
+# Mostramos el dataframe resultante...
+head(count)
+
+# ... Y el número de procesos biológicos distintos 
+nrow(count)
+
+# Nombramos la lista según el código del gen abreviado
+names(gos) <- degs$ID
+
+# Mostramos las primeras 5 entradas
+head(gos)
+
+# Guardamos el dataframe "count" como un excel
+openxlsx::write.xlsx(count, "./ConteoGOs.xlsx")
+```
+
+Como salen muchas funciones biológicas distintas, vamos a agruparlas en grupos más generales.
+
+```{r}
+# Instalamos el paquete sjmisc
+if (!require("sjmisc")) {
+  install.packages("sjmisc")
+  install.packages("stringdist")
+}
+
+count2 <- table(sjmisc::group_str(count$count))
+
+head(count2)
+
+openxlsx::write.xlsx(count2, "./ConteoGOs_Agrupados.xlsx")
+```
+
+## Gráficas
+
+Gráficamos
+
+```{r}
+library(ggplot2)
+
+gBar1 <- ggplot(count, aes(x = count, y = Freq)) + 
+  geom_bar(stat="identity")
+
+gBar2 <- gBar1 + coord_flip()
+
+ggsave("Graph Count Vertical.png", plot = gBar1)
+ggsave("Graph Count Hortizontal.png", plot = gBar2)
+```
+
