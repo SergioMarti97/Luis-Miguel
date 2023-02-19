@@ -39,8 +39,6 @@ resultsNames(dds)
 
 dds
 
-
-  
 #dds[dds$,]
 ```
 
