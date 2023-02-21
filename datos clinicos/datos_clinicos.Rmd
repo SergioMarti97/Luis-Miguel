@@ -277,30 +277,35 @@ El problema de generar los niveles del factor con este método, es que al dividi
 
 ```{r, warning=FALSE}
 # Para lo que voy a hacer, prefiero mantener el orden original
-# Podríamos hablar de fabricación de los datos, pero solamente es para mantener el orden original del dataframe/excel y poder asignar grupos a los individuos correctos
-lNumReplacedSurvival <- as.numeric(replace(dfClinical$Survival, dfClinical$Survival == "N.D.", floor(mean(lNumSurvival))))
 
-# Voy a hacer un clustering jerárquico
-# Después de probar los métodos para el clustering jerárquico, he elegido el método complete
-# Calculo la matriz de distancias, aplicando la transformación del logaritmo, para que las distancias sean menores, y me haga grupos con más individuo por cluster
-lLog10ReplacedSurvival <- log10(lNumReplacedSurvival)
-names(lLog10ReplacedSurvival) <- dfClinical$Samples
-hc <- hclust(dist(lLog10ReplacedSurvival), method="complete")
+lSamples <- dfClinical$Samples
+lSamples <- lSamples[!lSamples %in% c(63, 64, 113, 188)] 
+lSurvival <- na.omit(as.numeric(dfClinical$Survival))
+names(lSurvival) <- lSamples
 
-# Ahora genero el número de clusters deseados, en este caso 3
-fSurvival <- cutree(hc, k = 3)
+# Transformar con Log10
+lSurvival <- log10(lSurvival)
 
-# Muestro la agrupación y ploteo los datos
-dfSurvival <- data.frame(lNumReplacedSurvival, as.factor(fSurvival))
-colnames(dfSurvival) <- c("weeks", "cluster")
+mDistSurvival <- dist(lSurvival)
 
-# Tabla
-t1 <- as.data.frame(table(dfSurvival$cluster))
+hcSurvival <- hclust(mDistSurvival, method = "complete")
+
+fSurvival <- cutree(hcSurvival, k = 3)
+
+fSurvival <- factor(fSurvival)
+
+levels(fSurvival) <- c("media", "alta", "baja")
+
+fSurvival
+
+# tabla
+t1 <- as.data.frame(table(fSurvival))
 colnames(t1) <- c("cluster", "Freq")
 t1 <- tableGrob(t1)
 
 # boxplot
-g1 <- ggplot(dfSurvival, aes(x = reorder(cluster, weeks), y = log10(weeks), fill = cluster)) +
+g1 <- ggplot(data.frame(weeks = lSurvival, cluster = fSurvival), 
+  aes(x = reorder(cluster, weeks), y = log10(weeks), fill = cluster)) +
   stat_boxplot(geom = "errorbar", width = 0.25) + 
   xlab("cluster") +
   ylab("log10(Survival)") + 
@@ -309,18 +314,12 @@ g1 <- ggplot(dfSurvival, aes(x = reorder(cluster, weeks), y = log10(weeks), fill
   ggtitle("Clusters Survival")
 
 # dendograma
-hcplot <- ggdendro::ggdendrogram(hc, rotate = TRUE) + 
+hcplot <- ggdendro::ggdendrogram(hcSurvival, rotate = TRUE) + 
   ggtitle("Clustering Survival")
 
 grid.arrange(hcplot, t1, g1, nrow = 1, widths = c(1, 0.50, 1), clip = FALSE)
 
-# El resultado es bueno, así que guardamos el nuevo factor de supervivencia
-dfClinical$fSurvival <- dfSurvival$cluster
-
-# Asignamos los pacientes con N.D.
-dfClinical[dfClinical$Survival == "N.D.",]$fSurvival = NULL
-
-# rm(lLog10ReplacedSurvival, hc, hcplot, t1, g1)
+# ---------------------------
 ```
 
 ## Grado del glioblastoma
