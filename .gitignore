@@ -7,7 +7,6 @@
 *.rds
 *.csv
 *.xlsx
-*.html
 *.pdf
 *.feather
 *.tex
