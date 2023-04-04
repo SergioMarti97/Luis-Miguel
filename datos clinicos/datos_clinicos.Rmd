@@ -277,18 +277,19 @@ El problema de generar los niveles del factor con este método, es que al dividi
 
 ```{r, warning=FALSE}
 # Para lo que voy a hacer, prefiero mantener el orden original
-
 lSamples <- dfClinical$Samples
 lSamples <- lSamples[!lSamples %in% c(63, 64, 113, 188)] 
 lSurvival <- na.omit(as.numeric(dfClinical$Survival))
 names(lSurvival) <- lSamples
 
 # Transformar con Log10
-lSurvival <- log10(lSurvival)
+lLogSurvival <- log10(lSurvival)
 
-mDistSurvival <- dist(lSurvival)
+mLogSurvival <- as.matrix(lLogSurvival)
 
-hcSurvival <- hclust(mDistSurvival, method = "complete")
+distSurvival <- dist(mLogSurvival)
+
+hcSurvival <- hclust(distSurvival, method = "complete")
 
 fSurvival <- cutree(hcSurvival, k = 3)
 
